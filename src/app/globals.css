@@ -1,0 +1,510 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================
+   KATHAPP DESIGN SYSTEM v1.0
+   Dark Neon Pink · Always Dark
+   Mix: shadcn/ui primitives + custom brand
+   ============================================ */
+
+:root {
+  /* ── shadcn core tokens (mapped to designsystem.md) ── */
+  --background: #080808;
+  --foreground: #F2F2F2;
+  --card: #111111;
+  --card-foreground: #F2F2F2;
+  --popover: #111111;
+  --popover-foreground: #F2F2F2;
+  --primary: #FF0080;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1A1A1A;
+  --secondary-foreground: #F2F2F2;
+  --muted: #1A1A1A;
+  --muted-foreground: #A0A0A0;
+  --accent: #222222;
+  --accent-foreground: #F2F2F2;
+  --destructive: #FF4444;
+  --border: #2A2A2A;
+  --input: #2A2A2A;
+  --ring: #FF0080;
+
+  /* ── Charts ── */
+  --chart-1: #FF0080;
+  --chart-2: #FF4DB8;
+  --chart-3: #00FF88;
+  --chart-4: #FFE500;
+  --chart-5: #4D9EFF;
+
+  /* ── Sidebar (admin) ── */
+  --sidebar: #111111;
+  --sidebar-foreground: #F2F2F2;
+  --sidebar-primary: #FF0080;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1A1A1A;
+  --sidebar-accent-foreground: #F2F2F2;
+  --sidebar-border: #2A2A2A;
+  --sidebar-ring: #FF0080;
+
+  /* ── Base radius ── */
+  --radius: 0.875rem;
+
+  /* ── Custom brand tokens (designsystem.md) ── */
+  --pink: #FF0080;
+  --pink-light: #FF4DB8;
+  --pink-dim: rgba(255, 0, 128, 0.12);
+  --pink-glow: rgba(255, 0, 128, 0.35);
+  --bg-base: #080808;
+  --bg-1: #111111;
+  --bg-2: #1A1A1A;
+  --bg-3: #222222;
+  --bg-surface: #161616;
+  --gray-1: #F2F2F2;
+  --gray-2: #A0A0A0;
+  --gray-3: #555555;
+  --gray-4: #2A2A2A;
+  --yellow: #FFE500;
+  --success: #00FF88;
+  --info: #4D9EFF;
+  --danger: #FF4444;
+}
+
+/* Always dark — duplicar para .dark class do shadcn */
+.dark {
+  --background: #080808;
+  --foreground: #F2F2F2;
+  --card: #111111;
+  --card-foreground: #F2F2F2;
+  --popover: #111111;
+  --popover-foreground: #F2F2F2;
+  --primary: #FF0080;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1A1A1A;
+  --secondary-foreground: #F2F2F2;
+  --muted: #1A1A1A;
+  --muted-foreground: #A0A0A0;
+  --accent: #222222;
+  --accent-foreground: #F2F2F2;
+  --destructive: #FF4444;
+  --border: #2A2A2A;
+  --input: #2A2A2A;
+  --ring: #FF0080;
+  --chart-1: #FF0080;
+  --chart-2: #FF4DB8;
+  --chart-3: #00FF88;
+  --chart-4: #FFE500;
+  --chart-5: #4D9EFF;
+  --sidebar: #111111;
+  --sidebar-foreground: #F2F2F2;
+  --sidebar-primary: #FF0080;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1A1A1A;
+  --sidebar-accent-foreground: #F2F2F2;
+  --sidebar-border: #2A2A2A;
+  --sidebar-ring: #FF0080;
+}
+
+@theme inline {
+  /* ── shadcn required mappings ── */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ── Brand color utilities (bg-pink, text-gray-2, etc) ── */
+  --color-pink: var(--pink);
+  --color-pink-light: var(--pink-light);
+  --color-pink-dim: var(--pink-dim);
+  --color-pink-glow: var(--pink-glow);
+  --color-bg-base: var(--bg-base);
+  --color-bg-1: var(--bg-1);
+  --color-bg-2: var(--bg-2);
+  --color-bg-3: var(--bg-3);
+  --color-bg-surface: var(--bg-surface);
+  --color-gray-1: var(--gray-1);
+  --color-gray-2: var(--gray-2);
+  --color-gray-3: var(--gray-3);
+  --color-gray-4: var(--gray-4);
+  --color-yellow: var(--yellow);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-danger: var(--danger);
+
+  /* ── Typography ── */
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-display);
+
+  /* ── Border radius ── */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 32px;
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ── Shadows ── */
+  --shadow-pink: 0 0 40px rgba(255, 0, 128, 0.25), 0 4px 24px rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 2px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Base layer ── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+  html {
+    @apply font-body;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #080808; }
+  ::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #FF0080; }
+}
+
+/* ── Custom utilities ── */
+@layer utilities {
+  .glow-pink {
+    box-shadow: 0 0 40px rgba(255, 0, 128, 0.25), 0 4px 24px rgba(0, 0, 0, 0.6);
+  }
+  .text-gradient-pink {
+    background: linear-gradient(135deg, #FF0080, #FF4DB8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .bg-glow-pink {
+    background: radial-gradient(circle at center, rgba(255, 0, 128, 0.15) 0%, transparent 70%);
+  }
+
+  /* ── Noise texture overlay ── */
+  .noise-overlay {
+    position: relative;
+  }
+  .noise-overlay::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+    pointer-events: none;
+    z-index: 0;
+    mix-blend-mode: overlay;
+  }
+
+  /* ── Glow orb (positioned absolute) ── */
+  .glow-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    will-change: transform;
+  }
+  .glow-orb-pink {
+    background: radial-gradient(circle, rgba(255, 0, 128, 0.4) 0%, rgba(255, 0, 128, 0) 70%);
+  }
+  .glow-orb-purple {
+    background: radial-gradient(circle, rgba(128, 0, 255, 0.25) 0%, rgba(128, 0, 255, 0) 70%);
+  }
+
+  /* ── Scroll reveal states ── */
+  .sr-hidden {
+    opacity: 0;
+  }
+  .sr-visible {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* ── Text Reveal states (hape.io style) ── */
+  .tr-hidden {
+    visibility: hidden;
+  }
+  .tr-slide {
+    overflow: hidden;
+  }
+  .tr-slide > * {
+    transform: translate3d(0, 110%, 0);
+  }
+  .tr-slide.tr-visible {
+    visibility: visible;
+  }
+  .tr-slide.tr-visible > * {
+    animation: move-y-in 0.9s cubic-bezier(0.165, 0.84, 0.44, 1) both;
+  }
+
+  .tr-rotate {
+    perspective: 600px;
+  }
+  .tr-rotate > * {
+    opacity: 0;
+    transform: rotate3d(1, 0.15, 0, -90deg) translate3d(0, 10px, 0);
+    transform-origin: 0 100%;
+  }
+  .tr-rotate.tr-visible {
+    visibility: visible;
+  }
+  .tr-rotate.tr-visible > * {
+    animation: title-rotate-in 1s cubic-bezier(0.165, 0.84, 0.44, 1) both;
+  }
+
+  .tr-fade-y > * {
+    opacity: 0;
+    transform: translate3d(0, 30px, 0);
+  }
+  .tr-fade-y.tr-visible {
+    visibility: visible;
+  }
+  .tr-fade-y.tr-visible > * {
+    animation: fade-y-in 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) both;
+  }
+
+  /* ── Scale reveal (hape.io image reveal) ── */
+  .scale-reveal-container {
+    overflow: hidden;
+    transform: scale3d(0.85, 0.85, 1);
+    transition: transform 1s cubic-bezier(0.165, 0.84, 0.44, 1);
+  }
+  .scale-reveal-inner {
+    transform: scale3d(1.35, 1.35, 1);
+    transition: transform 1s cubic-bezier(0.165, 0.84, 0.44, 1);
+  }
+  .scale-reveal-visible {
+    transform: scale3d(1, 1, 1) !important;
+  }
+  .scale-reveal-visible .scale-reveal-inner {
+    transform: scale3d(1, 1, 1) !important;
+  }
+
+  /* ── Floating animation (for badges, decorative elements) ── */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  .animate-float-slow {
+    animation: float 8s ease-in-out infinite;
+  }
+  .animate-pulse-glow {
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  /* ── Marquee ── */
+  .animate-marquee {
+    animation: marquee-scroll linear infinite;
+  }
+
+  /* ── Scale-in for buttons/dots ── */
+  .animate-scale-in {
+    animation: scale-in 0.6s cubic-bezier(0.165, 0.84, 0.44, 1) both;
+  }
+  .animate-scale-x-in {
+    animation: scale-x-in 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) both;
+  }
+
+  /* ── Stagger children utility ── */
+  .stagger-children > *:nth-child(1) { animation-delay: 0s; }
+  .stagger-children > *:nth-child(2) { animation-delay: 0.05s; }
+  .stagger-children > *:nth-child(3) { animation-delay: 0.1s; }
+  .stagger-children > *:nth-child(4) { animation-delay: 0.15s; }
+  .stagger-children > *:nth-child(5) { animation-delay: 0.2s; }
+  .stagger-children > *:nth-child(6) { animation-delay: 0.25s; }
+  .stagger-children > *:nth-child(7) { animation-delay: 0.3s; }
+  .stagger-children > *:nth-child(8) { animation-delay: 0.35s; }
+
+  /* ── Gradient border trick ── */
+  .border-gradient-pink {
+    position: relative;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+  .border-gradient-pink::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(255, 0, 128, 0.5), rgba(255, 77, 184, 0.1), rgba(255, 0, 128, 0.3));
+    z-index: -1;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    padding: 1px;
+  }
+
+  /* ── Line separator with glow ── */
+  .line-glow {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 0, 128, 0.4), transparent);
+  }
+
+  /* ── Neon spot lights (hape.io style) ── */
+  .neon-spot {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    will-change: transform;
+  }
+  .neon-spot-pink {
+    background: radial-gradient(circle, rgba(255, 0, 128, 0.4) 0%, transparent 70%);
+    filter: blur(100px);
+  }
+  .neon-spot-purple {
+    background: radial-gradient(circle, rgba(128, 0, 255, 0.3) 0%, transparent 70%);
+    filter: blur(100px);
+  }
+
+  /* ── Footer gradient (hape.io style) ── */
+  .footer-gradient::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    height: 400px;
+    background: linear-gradient(to top, #080808 15%, transparent 100%);
+    pointer-events: none;
+  }
+}
+
+/* ── Keyframes ── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); }
+}
+
+@keyframes scroll-hint {
+  0%, 100% { opacity: 0.4; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(8px); }
+}
+
+/* ── hape.io Keyframes ── */
+@keyframes move-y-in {
+  0% { transform: translate3d(0, 110%, 0); }
+  to { transform: translateZ(0); }
+}
+
+@keyframes title-rotate-in {
+  0% {
+    opacity: 0;
+    transform: rotate3d(1, 0.15, 0, -90deg) translate3d(0, 10px, 0);
+    transform-origin: 0 100%;
+  }
+  to {
+    opacity: 1;
+    transform: rotate3d(1, 0.15, 0, 0) translateZ(0);
+    transform-origin: 0 100%;
+  }
+}
+
+@keyframes fade-y-in {
+  0% { opacity: 0; transform: translate3d(0, 30px, 0); }
+  to { opacity: 1; transform: translateZ(0); }
+}
+
+@keyframes scale-in {
+  0% { transform: scale3d(0, 0, 0); }
+  to { transform: scale3d(1, 1, 1); }
+}
+
+@keyframes scale-x-in {
+  0% { transform: scale3d(0, 1, 1); }
+  to { transform: scale3d(1, 1, 1); }
+}
+
+@keyframes marquee-scroll {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-33.333%, 0, 0); }
+}
+
+@keyframes neon-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  25% { transform: translate3d(30px, -20px, 0) scale(1.05); }
+  50% { transform: translate3d(-20px, 15px, 0) scale(0.95); }
+  75% { transform: translate3d(15px, 25px, 0) scale(1.02); }
+}
+
+@keyframes equalizer-bar-1 {
+  0%, 100% { transform: scaleY(0.15); }
+  25% { transform: scaleY(0.8); }
+  50% { transform: scaleY(0.4); }
+  75% { transform: scaleY(1); }
+}
+@keyframes equalizer-bar-2 {
+  0%, 100% { transform: scaleY(0.3); }
+  30% { transform: scaleY(1); }
+  60% { transform: scaleY(0.2); }
+  80% { transform: scaleY(0.7); }
+}
+@keyframes equalizer-bar-3 {
+  0%, 100% { transform: scaleY(0.5); }
+  20% { transform: scaleY(0.2); }
+  45% { transform: scaleY(1); }
+  70% { transform: scaleY(0.35); }
+}
+@keyframes equalizer-bar-4 {
+  0%, 100% { transform: scaleY(0.2); }
+  35% { transform: scaleY(0.65); }
+  55% { transform: scaleY(1); }
+  85% { transform: scaleY(0.4); }
+}
+
+/* ── Clerk Auth Override — via official CSS variables (Clerk v7) ── */
+:root {
+  --clerk-color-primary: #FF0080;
+  --clerk-color-primary-foreground: #FFFFFF;
+  --clerk-color-foreground: #F2F2F2;
+  --clerk-color-muted-foreground: #A0A0A0;
+  --clerk-color-background: #111111;
+  --clerk-color-muted: #1A1A1A;
+  --clerk-color-input: #1A1A1A;
+  --clerk-color-input-foreground: #FFFFFF;
+  --clerk-color-border: #2A2A2A;
+  --clerk-color-ring: #FF0080;
+  --clerk-color-neutral: #A0A0A0;
+  --clerk-color-danger: #FF4444;
+  --clerk-color-success: #00FF88;
+  --clerk-color-shadow: rgba(0, 0, 0, 0.5);
+  --clerk-border-radius: 14px;
+  --clerk-font-family: var(--font-body), "Space Grotesk", sans-serif;
+}
