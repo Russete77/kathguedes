@@ -18,7 +18,8 @@ create table if not exists public.plans (
   price_cents           int not null,
   asaas_value           numeric(10,2) not null,
   asaas_description     text not null,
-  cashback_pct          numeric(5,2) not null default 0,
+  cashback_pct          numeric(5,2) not null default 0
+                        check (cashback_pct between 0 and 100),
   store_discount_pct    int not null default 0
                         check (store_discount_pct between 0 and 100),
   estetica_discount_pct int not null default 0
@@ -120,7 +121,7 @@ create index if not exists idx_commission_rules_lookup
 create table if not exists public.commission_allocations (
   id                  uuid primary key default gen_random_uuid(),
   revenue_stream_id   uuid not null,
-  team_member_id      uuid not null references public.team_members(id),
+  team_member_id      uuid not null references public.team_members(id) on delete restrict,
   pct                 numeric(5,2) not null,
   amount_cents        int not null,
   status              text not null default 'draft'
@@ -141,7 +142,15 @@ create index if not exists idx_commission_alloc_member
 create unique index if not exists uniq_alloc_per_stream_member
   on public.commission_allocations(revenue_stream_id, team_member_id);
 
--- Seed de regras (Russo geral, Sidney mensalidade dos planos pagos com saúde)
+create unique index if not exists uniq_commission_rule_dedup
+  on public.commission_rules(
+    team_member_id,
+    coalesce(applies_to_type, ''),
+    coalesce(applies_to_category, ''),
+    is_active
+  );
+
+-- Seed de regras (idempotente via UNIQUE INDEX uniq_commission_rule_dedup)
 do $$
 declare
   v_russo  uuid;
@@ -150,15 +159,18 @@ begin
   select id into v_russo  from public.team_members where email='russo@kathapp.com.br';
   select id into v_sidney from public.team_members where email='sidney@kathapp.com.br';
 
-  -- só inserir se vazio
-  if not exists (select 1 from public.commission_rules) then
-    insert into public.commission_rules (team_member_id, pct) values (v_russo, 25);
+  if v_russo is not null then
+    insert into public.commission_rules (team_member_id, pct) values (v_russo, 25)
+      on conflict (team_member_id, coalesce(applies_to_type, ''), coalesce(applies_to_category, ''), is_active) do nothing;
+  end if;
 
+  if v_sidney is not null then
     insert into public.commission_rules (team_member_id, applies_to_type, applies_to_category, pct) values
       (v_sidney, 'mensalidade', 'plano1', 30),
       (v_sidney, 'mensalidade', 'plano2', 30),
       (v_sidney, 'mensalidade', 'plano3', 30),
-      (v_sidney, 'mensalidade', 'atleta', 30);
+      (v_sidney, 'mensalidade', 'atleta', 30)
+    on conflict (team_member_id, coalesce(applies_to_type, ''), coalesce(applies_to_category, ''), is_active) do nothing;
   end if;
 end $$;
 
