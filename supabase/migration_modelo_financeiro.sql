@@ -174,5 +174,124 @@ begin
   end if;
 end $$;
 
+-- ============================================
+-- 4. REVENUE_STREAMS
+-- ============================================
+
+create table if not exists public.revenue_streams (
+  id                  uuid primary key default gen_random_uuid(),
+  type                text not null
+                      check (type in ('mensalidade','loja','estetica','afiliado_externo')),
+  category            text,
+  user_id             text references public.profiles(id),
+  reference_type      text not null
+                      check (reference_type in ('subscription','order','booking','affiliate_payout')),
+  reference_id        text not null,
+  asaas_payment_id    text,
+  gross_cents         int  not null check (gross_cents >= 0),
+  cost_cents          int  not null default 0 check (cost_cents >= 0 and cost_cents <= gross_cents),
+  net_cents           int  generated always as (gross_cents - cost_cents) stored,
+  cashback_used_cents int  not null default 0 check (cashback_used_cents >= 0),
+  status              text not null default 'confirmed'
+                      check (status in ('pending','confirmed','refunded')),
+  occurred_at         timestamptz not null,
+  created_at          timestamptz not null default now()
+);
+
+alter table public.revenue_streams enable row level security;
+
+drop policy if exists revenue_streams_admin on public.revenue_streams;
+create policy revenue_streams_admin on public.revenue_streams
+  for all to service_role using (true) with check (true);
+
+create index if not exists idx_revenue_streams_type
+  on public.revenue_streams(type, occurred_at desc);
+create index if not exists idx_revenue_streams_user
+  on public.revenue_streams(user_id, occurred_at desc);
+create index if not exists idx_revenue_streams_status
+  on public.revenue_streams(status);
+create index if not exists idx_revenue_streams_asaas
+  on public.revenue_streams(asaas_payment_id)
+  where asaas_payment_id is not null;
+
+-- FK retroativa em commission_allocations
+alter table public.commission_allocations
+  drop constraint if exists commission_allocations_revenue_stream_id_fkey,
+  add  constraint commission_allocations_revenue_stream_id_fkey
+       foreign key (revenue_stream_id)
+       references public.revenue_streams(id) on delete cascade;
+
+-- ============================================
+-- 5. WALLET — créditos + saldo
+-- ============================================
+
+create table if not exists public.wallet_credits (
+  id                          uuid primary key default gen_random_uuid(),
+  user_id                     text not null references public.profiles(id) on delete cascade,
+  source_revenue_stream_id    uuid references public.revenue_streams(id),
+  spent_on_revenue_stream_id  uuid references public.revenue_streams(id),
+  amount_cents                int  not null,
+  expires_at                  timestamptz,
+  used_at                     timestamptz,
+  created_at                  timestamptz not null default now()
+);
+
+alter table public.wallet_credits enable row level security;
+
+drop policy if exists wallet_credits_select_own on public.wallet_credits;
+create policy wallet_credits_select_own on public.wallet_credits
+  for select to authenticated
+  using ((select auth.jwt()->>'sub') = user_id);
+
+drop policy if exists wallet_credits_admin on public.wallet_credits;
+create policy wallet_credits_admin on public.wallet_credits
+  for all to service_role using (true) with check (true);
+
+create index if not exists idx_wallet_credits_user_active
+  on public.wallet_credits(user_id, expires_at)
+  where used_at is null;
+
+create table if not exists public.wallet_balance (
+  user_id              text primary key references public.profiles(id) on delete cascade,
+  active_cents         int not null default 0,
+  earned_total_cents   int not null default 0,
+  spent_total_cents    int not null default 0,
+  expired_total_cents  int not null default 0,
+  updated_at           timestamptz not null default now()
+);
+
+alter table public.wallet_balance enable row level security;
+
+drop policy if exists wallet_balance_select_own on public.wallet_balance;
+create policy wallet_balance_select_own on public.wallet_balance
+  for select to authenticated
+  using ((select auth.jwt()->>'sub') = user_id);
+
+drop policy if exists wallet_balance_admin on public.wallet_balance;
+create policy wallet_balance_admin on public.wallet_balance
+  for all to service_role using (true) with check (true);
+
+-- ============================================
+-- 6. MONTHLY_USAGE — limites do FREE
+-- ============================================
+
+create table if not exists public.monthly_usage (
+  user_id                 text not null references public.profiles(id) on delete cascade,
+  year_month              text not null check (year_month ~ '^\d{4}-\d{2}$'),
+  affiliate_clicks_count  int  not null default 0,
+  primary key (user_id, year_month)
+);
+
+alter table public.monthly_usage enable row level security;
+
+drop policy if exists monthly_usage_select_own on public.monthly_usage;
+create policy monthly_usage_select_own on public.monthly_usage
+  for select to authenticated
+  using ((select auth.jwt()->>'sub') = user_id);
+
+drop policy if exists monthly_usage_admin on public.monthly_usage;
+create policy monthly_usage_admin on public.monthly_usage
+  for all to service_role using (true) with check (true);
+
 -- (continua na próxima task)
 commit;
