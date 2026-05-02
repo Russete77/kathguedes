@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // ── Plan Tiers ──
-export const planTierSchema = z.enum(["free", "start", "pro", "vip"]);
+export const planTierSchema = z.enum(["free", "acesso", "plano1", "plano2", "plano3", "atleta"]);
 
 // ── Workouts ──
 export const createWorkoutSchema = z.object({

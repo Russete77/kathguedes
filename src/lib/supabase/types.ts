@@ -7,7 +7,7 @@
  * Por enquanto, tipagem manual baseada no schema do PRD.
  */
 
-export type PlanTier = "free" | "start" | "pro" | "vip";
+export type PlanTier = "free" | "acesso" | "plano1" | "plano2" | "plano3" | "atleta";
 export type SubscriptionStatus = "active" | "past_due" | "canceled";
 export type WorkoutCategory =
   | "gluteo"
