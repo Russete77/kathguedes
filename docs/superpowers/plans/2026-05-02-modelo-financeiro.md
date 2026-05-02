@@ -935,7 +935,7 @@ const SAMPLE_PLANS: Plan[] = [
   { slug: "atleta", name: "Atleta",                     level: 5, price_cents: 30990, asaas_value: 309.9,asaas_description: "X", cashback_pct: 10, store_discount_pct: 25, estetica_discount_pct: 15, features: {}, is_active: true, sort_order: 5 },
 ];
 
-vi.mock("@/lib/supabase/admin", () => ({
+vi.mock("@/lib/supabase/server", () => ({
   createAdminSupabaseClient: () => ({
     from: () => ({
       select: () => ({
@@ -1021,7 +1021,7 @@ Expected: FAIL — módulo não existe.
 - [ ] **Step 3: Implementar `src/lib/billing/plans.ts`**
 
 ```ts
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import type { PlanTier } from "@/lib/supabase/types";
 
 export type PlanFeatures = {
@@ -1225,7 +1225,7 @@ import { describe, it, expect, vi } from "vitest";
 const mockRpc = vi.fn();
 const mockFrom = vi.fn();
 
-vi.mock("@/lib/supabase/admin", () => ({
+vi.mock("@/lib/supabase/server", () => ({
   createAdminSupabaseClient: () => ({
     rpc: mockRpc,
     from: mockFrom,
@@ -1283,7 +1283,7 @@ describe("wallet wrappers", () => {
 - [ ] **Step 5: Implementar `wallet.ts`**
 
 ```ts
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
 export type WalletBalance = {
   active_cents: number;
@@ -1396,7 +1396,7 @@ import { describe, it, expect, vi } from "vitest";
 
 const mockRpc = vi.fn();
 const mockFrom = vi.fn();
-vi.mock("@/lib/supabase/admin", () => ({
+vi.mock("@/lib/supabase/server", () => ({
   createAdminSupabaseClient: () => ({ rpc: mockRpc, from: mockFrom }),
 }));
 
@@ -1430,7 +1430,7 @@ describe("listAllocations", () => {
 `src/lib/billing/commissions.ts`:
 
 ```ts
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
 export type AllocationStatus = "draft" | "approved" | "paid" | "failed";
 
@@ -1620,7 +1620,7 @@ import { describe, it, expect, vi } from "vitest";
 
 const mockInsert = vi.fn();
 const mockRpc = vi.fn();
-vi.mock("@/lib/supabase/admin", () => ({
+vi.mock("@/lib/supabase/server", () => ({
   createAdminSupabaseClient: () => ({
     from: () => ({
       insert: () => ({
@@ -1662,7 +1662,7 @@ describe("recordRevenueStream", () => {
 - [ ] **Step 4: Implementar `revenue.ts`**
 
 ```ts
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
 export type RevenueStreamType = "mensalidade" | "loja" | "estetica" | "afiliado_externo";
 export type RevenueReferenceType = "subscription" | "order" | "booking" | "affiliate_payout";
@@ -2081,7 +2081,7 @@ Substituir handler core:
 ```ts
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { getStoreDiscountPct } from "@/lib/billing/plans";
 import { getWalletActiveCents, spendWalletCents } from "@/lib/billing/wallet";
 import { clampCashbackCents, computeAmountPaidCash } from "@/lib/billing/cashback-utils";
@@ -2354,7 +2354,7 @@ git commit -m "feat(estetica): bookings com desconto via plans + cashback + requ
 "use server";
 
 import { requireAdmin } from "@/lib/auth-helpers";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { creditWalletCents } from "@/lib/billing/wallet";
 import { getCashbackPct } from "@/lib/billing/plans";
@@ -2407,7 +2407,7 @@ export async function markOrderDelivered(orderId: string, trackingCode?: string)
 "use server";
 
 import { requireAdmin } from "@/lib/auth-helpers";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { creditWalletCents } from "@/lib/billing/wallet";
 import { getCashbackPct } from "@/lib/billing/plans";
@@ -2599,7 +2599,7 @@ git commit -m "feat(admin): product-form + service-form com cost_cents (CMV); de
 import { NextResponse } from "next/server";
 import { expireWalletCredits } from "@/lib/billing/wallet";
 import { handleApiError } from "@/lib/api-error";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { notifyUser } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
@@ -2654,7 +2654,7 @@ export async function GET(req: Request) {
 ```ts
 import { NextResponse } from "next/server";
 import { handleApiError } from "@/lib/api-error";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { creditWalletCents } from "@/lib/billing/wallet";
 
 export const dynamic = "force-dynamic";
@@ -3077,7 +3077,7 @@ Após o bloco de plano atual, adicionar:
 ```tsx
 import WalletBlock from "./wallet-block";
 import { getWalletActiveCents } from "@/lib/billing/wallet";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
 // dentro do component:
 const adminSupabase = createAdminSupabaseClient();
@@ -3189,7 +3189,7 @@ git commit -m "refactor(chat): sender_role substitui is_from_kath"
 
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { recordRevenueStream } from "@/lib/billing/revenue";
 import { approveAllocations as approve, markAllocationsPaid as paid } from "@/lib/billing/commissions";
 import { revalidatePath } from "next/cache";
@@ -3261,7 +3261,7 @@ export async function recordAffiliatePayout(formData: FormData) {
 
 ```tsx
 import { requireAdmin } from "@/lib/auth-helpers";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -3467,7 +3467,7 @@ function Section(props: {
 ```tsx
 // page.tsx
 import { requireAdmin } from "@/lib/auth-helpers";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import PayoutForm from "./payout-form";
 
 export const dynamic = "force-dynamic";
@@ -3561,7 +3561,7 @@ git commit -m "feat(admin): /admin/financeiro com receita/comissões/afiliados e
 "use server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 const memberSchema = z.object({
@@ -3622,7 +3622,7 @@ export async function deleteCommissionRule(id: string) {
 
 ```tsx
 import { requireAdmin } from "@/lib/auth-helpers";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import TeamForm from "./team-form";
 
 export const dynamic = "force-dynamic";
@@ -3685,7 +3685,7 @@ export default function TeamForm() {
 
 ```tsx
 import { requireAdmin } from "@/lib/auth-helpers";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import RulesForm from "./rules-form";
 
 export const dynamic = "force-dynamic";
@@ -3773,7 +3773,7 @@ git commit -m "feat(admin): /admin/team CRUD + /admin/team/regras"
 "use server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { _resetPlanCache } from "@/lib/billing/plans";
 import { revalidatePath } from "next/cache";
 

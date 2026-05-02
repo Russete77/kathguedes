@@ -31,10 +31,12 @@ export type Plan = {
 
 const TTL_MS = 60_000;
 let cache: { data: Plan[]; expiresAt: number } | null = null;
+let inflight: Promise<Plan[]> | null = null;
 
 /** @internal — para testes */
 export function _resetPlanCache(): void {
   cache = null;
+  inflight = null;
 }
 
 async function loadPlans(): Promise<Plan[]> {
@@ -44,15 +46,25 @@ async function loadPlans(): Promise<Plan[]> {
     .select("*")
     .order("level", { ascending: true });
   if (error) throw new Error(`[billing/plans] load failed: ${error.message}`);
-  return (data ?? []) as Plan[];
+  if (!data || data.length === 0) {
+    throw new Error("[billing/plans] plans table is empty — run seed");
+  }
+  return data as Plan[];
 }
 
 export async function getAllPlans(): Promise<Plan[]> {
   const now = Date.now();
   if (cache && cache.expiresAt > now) return cache.data;
-  const data = await loadPlans();
-  cache = { data, expiresAt: now + TTL_MS };
-  return data;
+  if (inflight) return inflight;
+  inflight = loadPlans()
+    .then(data => {
+      cache = { data, expiresAt: Date.now() + TTL_MS };
+      return data;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
 }
 
 export async function getPlan(slug: PlanTier): Promise<Plan | null> {
@@ -70,6 +82,9 @@ export async function getActivePlans(): Promise<Plan[]> {
  * Procura o plano com asaas_value mais proximo (<= value).
  */
 export async function planTierFromValue(value: number): Promise<PlanTier> {
+  if (!Number.isFinite(value)) {
+    throw new Error(`[billing/plans] planTierFromValue: invalid value ${value}`);
+  }
   const plans = await getAllPlans();
   const free = plans.find(p => p.slug === "free");
   if (!free) throw new Error("[billing/plans] FREE plan missing — seed required");

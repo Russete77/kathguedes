@@ -10,11 +10,13 @@ const SAMPLE_PLANS: Plan[] = [
   { slug: "atleta", name: "Atleta",                     level: 5, price_cents: 30990, asaas_value: 309.9,asaas_description: "X", cashback_pct: 10, store_discount_pct: 25, estetica_discount_pct: 15, features: {}, is_active: true, sort_order: 5 },
 ];
 
+const mockOrder = vi.fn();
+
 vi.mock("@/lib/supabase/server", () => ({
   createAdminSupabaseClient: () => ({
     from: () => ({
       select: () => ({
-        order: () => Promise.resolve({ data: SAMPLE_PLANS, error: null }),
+        order: mockOrder,
       }),
     }),
   }),
@@ -22,7 +24,11 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { _resetPlanCache, getAllPlans, getPlan, planTierFromValue, getStoreDiscountPct, getEsteticaDiscountPct, getCashbackPct } from "./plans";
 
-beforeEach(() => _resetPlanCache());
+beforeEach(() => {
+  _resetPlanCache();
+  mockOrder.mockReset();
+  mockOrder.mockResolvedValue({ data: SAMPLE_PLANS, error: null });
+});
 
 describe("plans cache", () => {
   it("getAllPlans retorna todos os 6 planos", async () => {
@@ -38,6 +44,17 @@ describe("plans cache", () => {
   it("getPlan retorna null para slug inexistente", async () => {
     const p = await getPlan("inexistente" as never);
     expect(p).toBeNull();
+  });
+
+  it("cache hit: 2 chamadas seguidas → loadPlans só 1 query", async () => {
+    await getAllPlans();
+    await getAllPlans();
+    expect(mockOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("loadPlans lança erro se tabela vazia", async () => {
+    mockOrder.mockResolvedValueOnce({ data: [], error: null });
+    await expect(getAllPlans()).rejects.toThrow(/plans table is empty/);
   });
 });
 
@@ -57,6 +74,14 @@ describe("planTierFromValue", () => {
   ])("value %f → %s", async (value, expected) => {
     const tier = await planTierFromValue(value);
     expect(tier).toBe(expected);
+  });
+
+  it("lança erro se value = NaN", async () => {
+    await expect(planTierFromValue(NaN)).rejects.toThrow(/invalid value/);
+  });
+
+  it("lança erro se value = Infinity", async () => {
+    await expect(planTierFromValue(Infinity)).rejects.toThrow(/invalid value/);
   });
 });
 
