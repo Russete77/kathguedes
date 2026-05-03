@@ -22,12 +22,11 @@ export interface EsteticaService {
   category: EsteticaServiceCategory;
   duration_min: number;
   price_cents: number;
+  cost_cents: number;
   compare_price: number | null;
-  discount_start: number;
-  discount_pro: number;
-  discount_vip: number;
   includes: string[];
   eligible_for_loyalty: boolean;
+  requires_paid_plan: boolean;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -49,6 +48,7 @@ export interface EsteticaBooking {
   price_cents: number;
   plan_discount_cents: number;
   loyalty_free: boolean;
+  cashback_used_cents: number;
   total_cents: number;
   asaas_payment_id: string | null;
   paid_at: string | null;
@@ -80,16 +80,13 @@ export interface EsteticaLoyaltyPhoto {
   created_at: string;
 }
 
-export function planDiscount(service: EsteticaService, planTier: string): number {
-  if (planTier === "vip") return service.discount_vip;
-  if (planTier === "pro") return service.discount_pro;
-  if (planTier === "start") return service.discount_start;
-  return 0;
-}
-
-export function finalPriceCents(service: EsteticaService, planTier: string): number {
-  const disc = planDiscount(service, planTier);
-  return Math.round(service.price_cents * (1 - disc / 100));
+/**
+ * Calcula preço final aplicando desconto (em %).
+ * O desconto deve vir de `getEsteticaDiscountPct(planTier)` em `lib/billing/plans`.
+ */
+export function finalPriceCents(service: Pick<EsteticaService, "price_cents">, discountPct: number): number {
+  const pct = Math.max(0, Math.min(100, discountPct));
+  return Math.round(service.price_cents * (100 - pct) / 100);
 }
 
 export function formatPrice(cents: number): string {

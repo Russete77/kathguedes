@@ -47,6 +47,13 @@ export async function POST(
     });
   }
 
+  if (booking.total_cents === 0) {
+    return NextResponse.json({
+      method: "free",
+      message: "Nada a pagar (cashback cobriu o valor).",
+    });
+  }
+
   if (booking.status !== "pending") {
     return NextResponse.json(
       { error: "Agendamento já processado", status: booking.status },
