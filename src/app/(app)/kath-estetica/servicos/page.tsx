@@ -9,8 +9,9 @@ import {
   type EsteticaService,
   finalPriceCents,
   formatPrice,
-  planDiscount,
 } from "@/lib/estetica/types";
+import { getEsteticaDiscountPct } from "@/lib/billing/plans";
+import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata: Metadata = {
   title: "Serviços — Kath Guedes Estética Moto",
@@ -31,7 +32,8 @@ export default async function ServicosPage() {
   ]);
 
   const services = (servicesRaw || []) as unknown as EsteticaService[];
-  const planTier = (profile?.plan_tier as string) || "free";
+  const planTier = ((profile?.plan_tier as string) || "free") as PlanTier;
+  const discountPct = await getEsteticaDiscountPct(planTier);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -54,8 +56,8 @@ export default async function ServicosPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {services.map((s) => {
-            const finalCents = finalPriceCents(s, planTier);
-            const disc = planDiscount(s, planTier);
+            const finalCents = finalPriceCents(s, discountPct);
+            const disc = discountPct;
             return (
               <Link
                 key={s.id}

@@ -5,6 +5,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ArrowLeft } from "lucide-react";
 import { type EsteticaService } from "@/lib/estetica/types";
 import { BookingForm } from "./booking-form";
+import { getEsteticaDiscountPct } from "@/lib/billing/plans";
+import { getWalletActiveCents } from "@/lib/billing/wallet";
+import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata = { title: "Agendar Serviço" };
 
@@ -34,6 +37,12 @@ export default async function AgendarPage({ params }: Props) {
 
   if (!serviceRaw) notFound();
   const service = serviceRaw as unknown as EsteticaService;
+  const planTier = ((profile?.plan_tier as string) || "free") as PlanTier;
+
+  const [discountPct, activeCashbackCents] = await Promise.all([
+    getEsteticaDiscountPct(planTier),
+    getWalletActiveCents(userId!),
+  ]);
 
   // Verificar elegibilidade fidelidade (4 fotos aprovadas no mês atual)
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -77,7 +86,8 @@ export default async function AgendarPage({ params }: Props) {
 
       <BookingForm
         service={service}
-        planTier={(profile?.plan_tier as string) || "free"}
+        discountPct={discountPct}
+        activeCashbackCents={activeCashbackCents}
         defaultName={
           (profile?.full_name as string) ||
           `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||

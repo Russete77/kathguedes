@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShoppingBag, Plus, Minus, Trash2, Truck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import CashbackInput from "@/components/billing/cashback-input";
 
 interface ShippingQuote {
   provider: string;
@@ -31,9 +32,6 @@ interface Product {
   height_cm: number | null;
   width_cm: number | null;
   length_cm: number | null;
-  discount_start: number;
-  discount_pro: number;
-  discount_vip: number;
 }
 
 interface CartItem {
@@ -45,29 +43,25 @@ function formatPrice(cents: number) {
   return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
 }
 
-function getDiscount(product: Product, plan: string): number {
-  if (plan === "vip") return product.discount_vip;
-  if (plan === "pro") return product.discount_pro;
-  if (plan === "start") return product.discount_start;
-  return 0;
-}
-
 function discountedPrice(cents: number, discountPct: number): number {
   return Math.round(cents * (1 - discountPct / 100));
 }
 
 export function StoreGrid({
   products,
-  planTier,
+  storeDiscountPct,
+  activeCashbackCents = 0,
 }: {
   products: Product[];
-  planTier: string;
+  storeDiscountPct: number;
+  activeCashbackCents?: number;
 }) {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartLoaded, setCartLoaded] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [cashbackCents, setCashbackCents] = useState(0);
 
   // Shipping
   const [shippingQuotes, setShippingQuotes] = useState<ShippingQuote[]>([]);
@@ -191,6 +185,7 @@ export function StoreGrid({
           shipping_method: selectedShipping.service,
           estimated_delivery: selectedShipping.estimated_delivery,
           shipping_info: shippingInfo,
+          use_cashback_cents: cashbackCents,
         }),
       });
 
@@ -202,6 +197,7 @@ export function StoreGrid({
         setShippingQuotes([]);
         setSelectedShipping(null);
         setShippingZip("");
+        setCashbackCents(0);
         shippingFetchedRef.current = "";
         // Redirecionar para página de pagamento
         if (orderId) {
@@ -254,8 +250,7 @@ export function StoreGrid({
   }
 
   const cartTotal = cart.reduce((sum, i) => {
-    const disc = getDiscount(i.product, planTier);
-    return sum + discountedPrice(i.product.price_cents, disc) * i.quantity;
+    return sum + discountedPrice(i.product.price_cents, storeDiscountPct) * i.quantity;
   }, 0);
 
   return (
@@ -263,7 +258,7 @@ export function StoreGrid({
       {/* Product Grid */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {products.map((p) => {
-          const disc = getDiscount(p, planTier);
+          const disc = storeDiscountPct;
           const finalPrice = discountedPrice(p.price_cents, disc);
 
           return (
@@ -341,8 +336,7 @@ export function StoreGrid({
 
           <div className="space-y-3 max-h-[200px] overflow-y-auto mb-4">
             {cart.map((item) => {
-              const disc = getDiscount(item.product, planTier);
-              const price = discountedPrice(item.product.price_cents, disc);
+              const price = discountedPrice(item.product.price_cents, storeDiscountPct);
               return (
                 <div key={item.product.id} className="flex items-center gap-3">
                   <div className="flex-1">
@@ -466,6 +460,13 @@ export function StoreGrid({
                 </p>
               )}
 
+              {/* Cashback */}
+              <CashbackInput
+                activeCents={activeCashbackCents}
+                grossCents={cartTotal + (selectedShipping?.price_cents || 0)}
+                onChange={setCashbackCents}
+              />
+
               {/* Totais */}
               <div className="border-t border-gray-4 pt-3 space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -480,10 +481,16 @@ export function StoreGrid({
                     </span>
                   </div>
                 )}
+                {cashbackCents > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-3 text-xs">Cashback aplicado</span>
+                    <span className="font-mono text-sm text-success">-{formatPrice(cashbackCents)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-gray-2 text-sm font-medium">Total</span>
                   <span className="font-display text-[24px] leading-none text-pink">
-                    {formatPrice(cartTotal + (selectedShipping?.price_cents || 0))}
+                    {formatPrice(cartTotal + (selectedShipping?.price_cents || 0) - cashbackCents)}
                   </span>
                 </div>
               </div>

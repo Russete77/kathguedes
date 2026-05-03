@@ -3,6 +3,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
 import { StoreGrid } from "./store-grid";
 import { ShoppingBag } from "lucide-react";
+import { getStoreDiscountPct } from "@/lib/billing/plans";
+import { getWalletActiveCents } from "@/lib/billing/wallet";
+import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata: Metadata = {
   title: "Loja Fitness",
@@ -33,7 +36,12 @@ export default async function LojaPage() {
     .eq("id", userId!)
     .single();
 
-  const planTier = (profile?.plan_tier as string) || "free";
+  const planTier = ((profile?.plan_tier as string) || "free") as PlanTier;
+
+  const [storeDiscountPct, activeCashbackCents] = await Promise.all([
+    getStoreDiscountPct(planTier),
+    getWalletActiveCents(userId!),
+  ]);
 
   if (!products?.length) {
     return (
@@ -60,7 +68,7 @@ export default async function LojaPage() {
         </p>
       </div>
 
-      <StoreGrid products={products} planTier={planTier} />
+      <StoreGrid products={products} storeDiscountPct={storeDiscountPct} activeCashbackCents={activeCashbackCents} />
     </div>
   );
 }

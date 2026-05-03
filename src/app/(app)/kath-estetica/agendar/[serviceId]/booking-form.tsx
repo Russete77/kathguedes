@@ -4,18 +4,18 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Car, Gift, Loader2 } from "lucide-react";
 import {
   type EsteticaService,
   finalPriceCents,
   formatPrice,
-  planDiscount,
 } from "@/lib/estetica/types";
+import CashbackInput from "@/components/billing/cashback-input";
 
 interface Props {
   service: EsteticaService;
-  planTier: string;
+  discountPct: number;
+  activeCashbackCents: number;
   defaultName: string;
   defaultPhone: string;
   loyaltyEligible: boolean;
@@ -23,7 +23,8 @@ interface Props {
 
 export function BookingForm({
   service,
-  planTier,
+  discountPct,
+  activeCashbackCents,
   defaultName,
   defaultPhone,
   loyaltyEligible,
@@ -35,11 +36,13 @@ export function BookingForm({
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [useLoyalty, setUseLoyalty] = useState(loyaltyEligible);
+  const [cashbackToUse, setCashbackToUse] = useState(0);
 
-  const discPct = planDiscount(service, planTier);
+  const discPct = discountPct;
   const basePrice = service.price_cents;
-  const planDiscountCents = basePrice - finalPriceCents(service, planTier);
-  const total = useLoyalty ? 0 : basePrice - planDiscountCents;
+  const planDiscountCents = basePrice - finalPriceCents(service, discountPct);
+  const grossPrice = basePrice - planDiscountCents;
+  const total = useLoyalty ? 0 : grossPrice - cashbackToUse;
 
   // Buscar slots sempre que a data muda
   useEffect(() => {
@@ -79,6 +82,7 @@ export function BookingForm({
       customer_name: form.get("customer_name"),
       customer_phone: form.get("customer_phone"),
       use_loyalty: useLoyalty,
+      use_cashback_cents: useLoyalty ? 0 : cashbackToUse,
     };
 
     try {
@@ -221,7 +225,7 @@ export function BookingForm({
         {discPct > 0 && !useLoyalty && (
           <div className="flex justify-between text-[12px]">
             <span className="text-gray-3">
-              Plano {planTier.toUpperCase()} ({discPct}%)
+              Desconto plano ({discPct}%)
             </span>
             <span className="text-success font-mono">
               -{formatPrice(planDiscountCents)}
@@ -236,6 +240,12 @@ export function BookingForm({
             <span className="text-pink font-mono">-{formatPrice(basePrice)}</span>
           </div>
         )}
+        {!useLoyalty && cashbackToUse > 0 && (
+          <div className="flex justify-between text-[12px]">
+            <span className="text-gray-3">Cashback aplicado</span>
+            <span className="text-success font-mono">-{formatPrice(cashbackToUse)}</span>
+          </div>
+        )}
         <div className="flex justify-between items-baseline border-t border-gray-4 pt-1.5">
           <span className="text-white text-[13px] font-semibold">Total</span>
           <span className="font-display text-[22px] leading-none text-pink">
@@ -243,6 +253,15 @@ export function BookingForm({
           </span>
         </div>
       </div>
+
+      {/* Cashback */}
+      {!useLoyalty && (
+        <CashbackInput
+          activeCents={activeCashbackCents}
+          grossCents={grossPrice}
+          onChange={setCashbackToUse}
+        />
+      )}
 
       {/* CTA — desktop inline, mobile fixo */}
       <Button

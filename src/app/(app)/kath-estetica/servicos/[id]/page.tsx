@@ -10,8 +10,9 @@ import {
   type EsteticaService,
   finalPriceCents,
   formatPrice,
-  planDiscount,
 } from "@/lib/estetica/types";
+import { getEsteticaDiscountPct } from "@/lib/billing/plans";
+import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata: Metadata = { title: "Detalhe do Serviço" };
 
@@ -36,9 +37,10 @@ export default async function ServicoDetailPage({ params }: Props) {
 
   if (!serviceRaw) notFound();
   const service = serviceRaw as unknown as EsteticaService;
-  const planTier = (profile?.plan_tier as string) || "free";
-  const finalCents = finalPriceCents(service, planTier);
-  const disc = planDiscount(service, planTier);
+  const planTier = ((profile?.plan_tier as string) || "free") as PlanTier;
+  const discountPct = await getEsteticaDiscountPct(planTier);
+  const finalCents = finalPriceCents(service, discountPct);
+  const disc = discountPct;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-4 lg:py-6 space-y-4 lg:space-y-6 pb-32 lg:pb-6">

@@ -22,6 +22,8 @@ import {
   finalPriceCents,
   formatPrice,
 } from "@/lib/estetica/types";
+import { getEsteticaDiscountPct } from "@/lib/billing/plans";
+import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata: Metadata = {
   title: "Kath Guedes Estética Moto",
@@ -64,7 +66,8 @@ export default async function KathEsteticaHubPage() {
 
   const services = (servicesRaw || []) as unknown as EsteticaService[];
   const portfolio = (portfolioRaw || []) as unknown as EsteticaPortfolioItem[];
-  const planTier = (profile?.plan_tier as string) || "free";
+  const planTier = ((profile?.plan_tier as string) || "free") as PlanTier;
+  const discountPct = await getEsteticaDiscountPct(planTier);
 
   // Progresso do programa de fidelidade (fotos aprovadas do mês)
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -262,7 +265,7 @@ export default async function KathEsteticaHubPage() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {services.map((s) => {
-              const finalCents = finalPriceCents(s, planTier);
+              const finalCents = finalPriceCents(s, discountPct);
               const hasDiscount = finalCents < s.price_cents;
               return (
                 <Link
@@ -292,7 +295,7 @@ export default async function KathEsteticaHubPage() {
                         variant="solid"
                         className="absolute top-3 right-3"
                       >
-                        -{planDiscountPct(s, planTier)}%
+                        -{discountPct}%
                       </Badge>
                     )}
                   </div>
@@ -402,13 +405,6 @@ export default async function KathEsteticaHubPage() {
       </section>
     </div>
   );
-}
-
-function planDiscountPct(s: EsteticaService, plan: string): number {
-  if (plan === "vip") return s.discount_vip;
-  if (plan === "pro") return s.discount_pro;
-  if (plan === "start") return s.discount_start;
-  return 0;
 }
 
 function FeatureTile({

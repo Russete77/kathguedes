@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase/server";
 import { StreakBadge } from "@/components/fitness/streak-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import {
   Bell,
   ArrowRight,
 } from "lucide-react";
+import WalletBlock from "./wallet-block";
+import { getWalletActiveCents } from "@/lib/billing/wallet";
 
 export const metadata: Metadata = {
   title: "Meu Perfil",
@@ -40,6 +42,19 @@ export default async function PerfilPage() {
   const subscriptionEnds = profile?.subscription_ends_at
     ? new Date(profile.subscription_ends_at as string).toLocaleDateString("pt-BR")
     : null;
+
+  const activeCents = await getWalletActiveCents(userId!);
+  const adminSb = createAdminSupabaseClient();
+  const { data: nextExp } = await adminSb
+    .from("wallet_credits")
+    .select("amount_cents,expires_at")
+    .eq("user_id", userId!)
+    .is("used_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .gt("amount_cents", 0)
+    .order("expires_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
   const planColors: Record<string, string> = {
     free: "text-gray-2",
@@ -122,6 +137,13 @@ export default async function PerfilPage() {
           </Link>
         )}
       </div>
+
+      {/* Wallet */}
+      <WalletBlock
+        activeCents={activeCents}
+        expiringSoonCents={nextExp?.amount_cents ?? 0}
+        expiringSoonAt={nextExp?.expires_at ?? null}
+      />
 
       {/* Menu */}
       <div className="bg-bg-1 border border-gray-4 rounded-[14px] overflow-hidden">
