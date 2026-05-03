@@ -24,6 +24,7 @@ import {
   Image as ImageIcon,
   Clock,
   ChevronDown,
+  Banknote,
 } from "lucide-react";
 
 interface NavItem {
@@ -50,6 +51,7 @@ const appNav: NavItem[] = [
   { href: "/admin/loja", label: "Loja", icon: ShoppingBag },
   { href: "/admin/chat", label: "Chat VIP", icon: MessageCircle },
   { href: "/admin/push", label: "Push", icon: Bell },
+  { href: "/admin/financeiro", label: "Financeiro", icon: Banknote },
 ];
 
 const navGroups: NavGroup[] = [
