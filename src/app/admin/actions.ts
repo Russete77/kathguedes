@@ -374,7 +374,7 @@ export async function getDashboardMetrics() {
     supabase.from("consultations").select("id", { count: "exact", head: true }).eq("status", "in_progress"),
     supabase.from("consultations").select("id", { count: "exact", head: true }).eq("status", "delivered"),
     // ── Chat VIP ──
-    supabase.from("messages").select("id", { count: "exact", head: true }).eq("is_from_kath", false).eq("is_read", false),
+    supabase.from("messages").select("id", { count: "exact", head: true }).eq("sender_role", "user").eq("is_read", false),
     // ── Content counts ──
     supabase.from("workout_videos").select("id", { count: "exact", head: true }),
     supabase.from("workout_videos").select("id", { count: "exact", head: true }).eq("is_published", true),

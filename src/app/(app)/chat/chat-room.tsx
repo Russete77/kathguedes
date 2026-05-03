@@ -57,35 +57,47 @@ export function ChatRoom({ userId }: ChatRoomProps) {
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={cn(
-              "max-w-[80%] px-4 py-3 rounded-[18px]",
-              msg.is_from_kath
-                ? "bg-bg-1 border border-gray-4 mr-auto rounded-bl-[4px]"
-                : "bg-pink text-white ml-auto rounded-br-[4px]"
-            )}
-          >
-            {msg.is_from_kath && (
-              <div className="font-mono text-[10px] text-pink tracking-[0.1em] uppercase mb-1">
-                Kath
-              </div>
-            )}
-            <p className="text-[14px] leading-relaxed">{msg.body}</p>
+        {messages.map((msg) => {
+          const incoming = msg.sender_role !== "user";
+          const senderName =
+            msg.sender_role === "kath"
+              ? "Kath"
+              : msg.sender_role === "sidney"
+              ? "Sidney"
+              : msg.sender_role === "admin"
+              ? "Equipe"
+              : "";
+
+          return (
             <div
+              key={msg.id}
               className={cn(
-                "font-mono text-[10px] mt-1",
-                msg.is_from_kath ? "text-gray-3" : "text-white/60"
+                "max-w-[80%] px-4 py-3 rounded-[18px]",
+                incoming
+                  ? "bg-bg-1 border border-gray-4 mr-auto rounded-bl-[4px]"
+                  : "bg-pink text-white ml-auto rounded-br-[4px]"
               )}
             >
-              {new Date(msg.created_at).toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              {incoming && senderName && (
+                <div className="font-mono text-[10px] text-pink tracking-[0.1em] uppercase mb-1">
+                  {senderName}
+                </div>
+              )}
+              <p className="text-[14px] leading-relaxed">{msg.body}</p>
+              <div
+                className={cn(
+                  "font-mono text-[10px] mt-1",
+                  incoming ? "text-gray-3" : "text-white/60"
+                )}
+              >
+                {new Date(msg.created_at).toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={bottomRef} />
       </div>
 

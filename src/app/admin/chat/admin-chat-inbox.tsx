@@ -14,7 +14,8 @@ interface Conversation {
   avatar_url: string | null;
   last_message: string;
   last_at: string;
-  is_from_kath: boolean;
+  /** Última mensagem foi enviada pela equipe (não pelo user) */
+  last_from_team: boolean;
   unread: number;
 }
 
@@ -63,7 +64,7 @@ export function AdminChatInbox({
               )}
             </div>
             <p className="text-gray-3 text-[12px] truncate mt-0.5">
-              {c.is_from_kath ? "Você: " : ""}
+              {c.last_from_team ? "Você: " : ""}
               {c.last_message}
             </p>
             <span className="font-mono text-[10px] text-gray-3">
@@ -112,6 +113,7 @@ function AdminChatThread({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [senderRole, setSenderRole] = useState<"kath" | "sidney">("kath");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Fetch messages
@@ -171,16 +173,17 @@ function AdminChatThread({
       await supabase.from("messages").insert({
         user_id: userId,
         body,
-        is_from_kath: true,
+        sender_role: senderRole,
       });
 
       // Push notification para o assinante
+      const senderName = senderRole === "kath" ? "Kath" : "Sidney";
       fetch("/api/push/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
-          title: "Nova mensagem da Kath",
+          title: `Nova mensagem da ${senderName}`,
           body: body.length > 60 ? body.slice(0, 60) + "..." : body,
           url: "/chat",
         }),
@@ -221,40 +224,66 @@ function AdminChatThread({
             Sem mensagens.
           </p>
         ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "max-w-[80%] px-4 py-3 rounded-[18px]",
-                msg.is_from_kath
-                  ? "bg-pink text-white ml-auto rounded-br-[4px]"
-                  : "bg-bg-1 border border-gray-4 mr-auto rounded-bl-[4px]"
-              )}
-            >
-              <p className="text-[14px] leading-relaxed">{msg.body}</p>
+          messages.map((msg) => {
+            const fromTeam = msg.sender_role !== "user";
+            const senderLabel =
+              msg.sender_role === "kath"
+                ? "Kath"
+                : msg.sender_role === "sidney"
+                ? "Sidney"
+                : msg.sender_role === "admin"
+                ? "Equipe"
+                : "";
+            return (
               <div
+                key={msg.id}
                 className={cn(
-                  "font-mono text-[10px] mt-1",
-                  msg.is_from_kath ? "text-white/60" : "text-gray-3"
+                  "max-w-[80%] px-4 py-3 rounded-[18px]",
+                  fromTeam
+                    ? "bg-pink text-white ml-auto rounded-br-[4px]"
+                    : "bg-bg-1 border border-gray-4 mr-auto rounded-bl-[4px]"
                 )}
               >
-                {new Date(msg.created_at).toLocaleTimeString("pt-BR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {fromTeam && senderLabel && (
+                  <div className="font-mono text-[10px] text-white/80 tracking-[0.1em] uppercase mb-1">
+                    {senderLabel}
+                  </div>
+                )}
+                <p className="text-[14px] leading-relaxed">{msg.body}</p>
+                <div
+                  className={cn(
+                    "font-mono text-[10px] mt-1",
+                    fromTeam ? "text-white/60" : "text-gray-3"
+                  )}
+                >
+                  {new Date(msg.created_at).toLocaleTimeString("pt-BR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         <div ref={bottomRef} />
       </div>
 
       {/* Input */}
       <form onSubmit={handleSend} className="mt-3 flex gap-2 items-end">
+        <select
+          value={senderRole}
+          onChange={(e) => setSenderRole(e.target.value as "kath" | "sidney")}
+          disabled={sending}
+          className="bg-bg-1 border border-gray-4 rounded-[14px] text-white text-[13px] px-3 py-3 outline-none focus:border-pink"
+          aria-label="Responder como"
+        >
+          <option value="kath">Kath</option>
+          <option value="sidney">Sidney</option>
+        </select>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Responder como Kath..."
+          placeholder={`Responder como ${senderRole === "kath" ? "Kath" : "Sidney"}...`}
           disabled={sending}
           className="flex-1 bg-bg-1 border border-gray-4 rounded-[14px] text-white font-body text-[15px] px-4 py-3 outline-none transition-all placeholder:text-gray-3 focus:border-pink focus:ring-[3px] focus:ring-pink-dim"
         />

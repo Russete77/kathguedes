@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useSupabase } from "@/lib/supabase/client";
 
+export type MessageSenderRole = "user" | "kath" | "sidney" | "admin";
+
 export interface Message {
   id: string;
   user_id: string;
   body: string;
-  is_from_kath: boolean;
+  sender_role: MessageSenderRole;
   is_read: boolean;
   created_at: string;
 }
@@ -69,7 +71,7 @@ export function useRealtimeMessages(userId: string) {
     const { error } = await supabase.from("messages").insert({
       user_id: userId,
       body,
-      is_from_kath: false,
+      sender_role: "user",
     });
     if (error) throw new Error(error.message);
   }

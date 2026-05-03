@@ -172,7 +172,7 @@ type MessageFields = {
   id: string;
   user_id: string;
   body: string;
-  is_from_kath: boolean;
+  sender_role: "user" | "kath" | "sidney" | "admin";
   is_read: boolean;
   created_at: string;
 };
