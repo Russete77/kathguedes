@@ -13,19 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, ExternalLink, Copy, Check, QrCode } from "lucide-react";
 import type { PlanTier } from "@/lib/supabase/types";
+import type { Plan } from "@/lib/billing/plans";
 
 interface SubscribeButtonProps {
-  plan: Exclude<PlanTier, "free">;
-  currentPlan: string;
+  plan: Plan;
+  currentPlan: PlanTier;
   featured?: boolean;
 }
-
-const PLAN_HIERARCHY: Record<string, number> = {
-  free: 0,
-  start: 1,
-  pro: 2,
-  vip: 3,
-};
 
 const BILLING_OPTIONS = [
   {
@@ -74,9 +68,15 @@ export function SubscribeButton({
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const isCurrent = currentPlan === plan;
-  const isDowngrade =
-    PLAN_HIERARCHY[currentPlan] > PLAN_HIERARCHY[plan];
+  const isCurrent = currentPlan === plan.slug;
+  // Para detectar downgrade precisamos saber o level do plano atual.
+  // Como o caller passa apenas o slug, fazemos lookup via fetch one-time.
+  // Solução pragmática: para slugs conhecidos hardcode os levels (cache local;
+  // se vier slug inesperado, default 0 = free e nunca bloqueia).
+  const LEVELS: Record<string, number> = {
+    free: 0, acesso: 1, plano1: 2, plano2: 3, plano3: 4, atleta: 5,
+  };
+  const isDowngrade = (LEVELS[currentPlan] ?? 0) > plan.level;
 
   const resetDialog = () => {
     setStep("select-billing");
@@ -98,7 +98,7 @@ export function SubscribeButton({
       const response = await fetch("/api/checkout/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billingType }),
+        body: JSON.stringify({ plan: plan.slug, billingType }),
       });
 
       if (!response.ok) {
@@ -182,7 +182,7 @@ export function SubscribeButton({
                 <DialogDescription className="text-gray-2">
                   Selecione como você deseja pagar sua assinatura do plano{" "}
                   <span className="text-pink font-semibold uppercase">
-                    {plan}
+                    {plan.name}
                   </span>
                 </DialogDescription>
               </DialogHeader>
@@ -338,7 +338,7 @@ export function SubscribeButton({
                 <p className="text-xs text-gray-3">
                   Seu plano será ativado automaticamente após a
                   confirmação do pagamento.
-                  {plan === "vip" &&
+                  {plan.slug === "atleta" &&
                     " Você terá acesso imediato à consultoria e ficha de anamnese."}
                 </p>
                 <p className="text-xs text-gray-3">

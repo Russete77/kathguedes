@@ -1,173 +1,218 @@
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, Crown } from "lucide-react";
-import Link from "next/link";
+import { Check, X } from "lucide-react";
 import { SubscribeButton } from "./subscribe-button";
+import { getActivePlans, type Plan, type PlanFeatures } from "@/lib/billing/plans";
+import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata: Metadata = {
   title: "Planos e Preços",
-  description: "Escolha seu plano KathApp: Free, Start (R$19/mês), Pro (R$39/mês) ou VIP (R$99/mês) com consultoria personalizada. Comece grátis.",
+  description:
+    "Escolha seu plano KathApp: Free, Acesso (R$19,90), Plano 1 (R$39,90), Plano 2 (R$74,90), Plano 3 (R$99,90) ou Atleta (R$309,90) com consultoria personalizada.",
   keywords: ["planos kathapp", "preços", "assinatura fitness", "consultoria fitness preço"],
   alternates: { canonical: "https://kathapp.com.br/planos" },
   openGraph: {
     title: "Planos e Preços — KathApp",
-    description: "Free, Start, Pro ou VIP — escolha o plano ideal para seus objetivos fitness.",
+    description: "Free, Acesso, Plano 1, 2, 3 ou Atleta — escolha o plano ideal.",
     images: [{ url: "/og-image.png", width: 1200, height: 630 }],
   },
 };
 
-const plans = [
-  {
-    name: "FREE",
-    price: 0,
-    period: "para sempre",
-    features: [
-      { text: "5 treinos liberados", ok: true },
-      { text: "Afiliados básicos", ok: true },
-      { text: "Loja (ver preços)", ok: true },
-      { text: "Treinos novos toda semana", ok: false },
-      { text: "Cupons de parceiros", ok: false },
-      { text: "Consultoria personalizada", ok: false },
-      { text: "Chat com a Kath", ok: false },
-    ],
-  },
-  {
-    name: "START",
-    price: 19,
-    period: "/mês",
-    features: [
-      { text: "Biblioteca completa de treinos", ok: true },
-      { text: "Treinos novos toda semana", ok: true },
-      { text: "Cupons de parceiros", ok: true },
-      { text: "5% desconto na loja", ok: true },
-      { text: "Consultoria personalizada", ok: false },
-      { text: "Chat com a Kath", ok: false },
-    ],
-  },
-  {
-    name: "PRO",
-    price: 39,
-    period: "/mês",
-    featured: true,
-    features: [
-      { text: "Tudo do START", ok: true },
-      { text: "Cupons early access", ok: true },
-      { text: "Check-in semanal de evolução", ok: true },
-      { text: "10% desconto na loja", ok: true },
-      { text: "Acesso antecipado a lançamentos", ok: true },
-      { text: "Comunidade exclusiva", ok: true },
-      { text: "Consultoria personalizada", ok: false },
-      { text: "Chat com a Kath", ok: false },
-    ],
-  },
-  {
-    name: "VIP",
-    price: 99,
-    period: "/mês",
-    features: [
-      { text: "Tudo do PRO", ok: true },
-      { text: "Consultoria mensal completa", ok: true },
-      { text: "Treino + dieta personalizados", ok: true },
-      { text: "Chat direto com a Kath", ok: true },
-      { text: "Lives exclusivas mensais", ok: true },
-      { text: "First access cupons 48h", ok: true },
-      { text: "20% desconto na loja", ok: true },
-    ],
-  },
-];
+export const dynamic = "force-dynamic";
 
 export default async function PlanosPage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  if (!userId) redirect("/login");
 
+  const supabase = await createServerSupabaseClient();
   const { data: profile } = await supabase
     .from("profiles")
     .select("plan_tier")
-    .eq("id", userId!)
+    .eq("id", userId)
     .single();
 
-  const currentPlan = (profile?.plan_tier as string) || "free";
+  const currentPlan: PlanTier = (profile?.plan_tier as PlanTier | undefined) ?? "free";
+  const plans = await getActivePlans();
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
       <div className="text-center">
         <h1 className="font-display text-4xl lg:text-5xl text-white">
           ESCOLHA SEU <span className="text-pink">PLANO</span>
         </h1>
         <p className="text-gray-2 mt-2">
-          Desbloqueie treinos, consultoria e cupons exclusivos.
+          Desbloqueie treinos, consultoria, cupons e cashback exclusivo.
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {plans.map((plan) => {
-          const isCurrent = currentPlan === plan.name.toLowerCase();
-          const featured = plan.featured;
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {plans.map(plan => (
+          <PlanCard
+            key={plan.slug}
+            plan={plan}
+            currentPlan={currentPlan}
+            featured={plan.slug === "plano3"}
+            premium={plan.slug === "atleta"}
+          />
+        ))}
+      </div>
 
-          return (
-            <div
-              key={plan.name}
-              className={`bg-bg-1 border rounded-[22px] p-7 relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 ${
-                isCurrent
-                  ? "border-success"
-                  : featured
-                  ? "border-pink bg-gradient-to-b from-[#1A0010] to-bg-1"
-                  : "border-gray-4"
-              }`}
-            >
-              {featured && !isCurrent && (
-                <div className="absolute top-4 right-[-28px] bg-pink text-white text-[9px] font-bold tracking-[0.12em] px-9 py-1 rotate-45">
-                  POPULAR
-                </div>
-              )}
-              {isCurrent && (
-                <div className="absolute top-4 right-[-24px] bg-success text-bg-base text-[9px] font-bold tracking-[0.12em] px-9 py-1 rotate-45">
-                  ATUAL
-                </div>
-              )}
-
-              <div className="font-mono text-[11px] text-gray-3 tracking-[0.1em] uppercase mb-2.5">
-                {plan.name}
-              </div>
-              <div className="font-display text-[52px] leading-none text-white">
-                {plan.price === 0 ? "FREE" : `R$${plan.price}`}
-              </div>
-              <div className="text-[13px] text-gray-3 mb-6">{plan.period}</div>
-
-              <div className="flex flex-col gap-2.5 mb-6">
-                {plan.features.map((f, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-start gap-2 text-[13px] ${
-                      f.ok ? "text-gray-1" : "text-gray-3"
-                    }`}
-                  >
-                    <span className={`mt-0.5 ${f.ok ? "text-pink" : "text-gray-4"}`}>
-                      {f.ok ? <Check size={14} /> : "—"}
-                    </span>
-                    {f.text}
-                  </div>
-                ))}
-              </div>
-
-              {plan.price === 0 ? (
-                <Button variant="ghost" size="sm" className="w-full" disabled>
-                  Plano Gratuito
-                </Button>
-              ) : (
-                <SubscribeButton
-                  plan={plan.name.toLowerCase() as "start" | "pro" | "vip"}
-                  currentPlan={currentPlan}
-                  featured={featured}
-                />
-              )}
-            </div>
-          );
-        })}
+      <div className="text-center text-xs text-gray-3 mt-4">
+        Cancelamento a qualquer momento. Sem fidelidade.
       </div>
     </div>
   );
+}
+
+function PlanCard({
+  plan,
+  currentPlan,
+  featured,
+  premium,
+}: {
+  plan: Plan;
+  currentPlan: PlanTier;
+  featured?: boolean;
+  premium?: boolean;
+}) {
+  const isCurrent = plan.slug === currentPlan;
+  const items = featuresToList(plan);
+
+  return (
+    <div
+      className={`bg-bg-1 border rounded-[22px] p-6 relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 flex flex-col ${
+        isCurrent
+          ? "border-success"
+          : premium
+          ? "border-pink bg-gradient-to-b from-[#1A0010] to-bg-1"
+          : featured
+          ? "border-pink/60"
+          : "border-gray-4"
+      }`}
+    >
+      {premium && !isCurrent && (
+        <div className="absolute top-3 right-[-30px] bg-pink text-white text-[9px] font-bold tracking-[0.12em] px-9 py-1 rotate-45">
+          PREMIUM
+        </div>
+      )}
+      {featured && !premium && !isCurrent && (
+        <div className="absolute top-3 right-[-30px] bg-pink/80 text-white text-[9px] font-bold tracking-[0.12em] px-9 py-1 rotate-45">
+          POPULAR
+        </div>
+      )}
+      {isCurrent && (
+        <div className="absolute top-3 right-[-26px] bg-success text-bg-base text-[9px] font-bold tracking-[0.12em] px-9 py-1 rotate-45">
+          ATUAL
+        </div>
+      )}
+
+      <div className="font-mono text-[11px] text-gray-3 tracking-[0.1em] uppercase mb-2">
+        {plan.name}
+      </div>
+      <div className="font-display text-[40px] leading-none text-white">
+        {plan.price_cents === 0
+          ? "FREE"
+          : `R$ ${(plan.price_cents / 100).toFixed(2).replace(".", ",")}`}
+      </div>
+      <div className="text-[12px] text-gray-3 mb-5">
+        {plan.price_cents === 0 ? "para sempre" : "/mês"}
+      </div>
+
+      <div className="flex flex-col gap-2 mb-5 flex-1">
+        {items.map((it, i) => (
+          <FeatureRow key={i} on={it.on} label={it.label} />
+        ))}
+      </div>
+
+      {plan.price_cents === 0 ? (
+        <Button variant="ghost" size="sm" className="w-full" disabled>
+          Plano Gratuito
+        </Button>
+      ) : (
+        <SubscribeButton plan={plan} currentPlan={currentPlan} />
+      )}
+    </div>
+  );
+}
+
+function FeatureRow({ on, label }: { on: boolean; label: string }) {
+  return (
+    <div className={`flex items-start gap-2 text-[12.5px] ${on ? "text-gray-1" : "text-gray-3"}`}>
+      <span className={`mt-0.5 ${on ? "text-pink" : "text-gray-4"}`}>
+        {on ? <Check size={14} /> : <X size={14} />}
+      </span>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/**
+ * Converte o JSONB `features` + percentuais do plan em uma lista de "feature: on/off"
+ * pra render uniforme em todos os cards.
+ */
+function featuresToList(plan: Plan): Array<{ on: boolean; label: string }> {
+  const f: PlanFeatures = plan.features ?? {};
+  const items: Array<{ on: boolean; label: string }> = [];
+
+  // Treinos
+  if (f.workouts) {
+    items.push({ on: true, label: "Biblioteca completa de treinos" });
+  } else if (typeof f.workouts_preview === "number" && f.workouts_preview > 0) {
+    items.push({ on: true, label: `${f.workouts_preview} treinos preview grátis` });
+  } else {
+    items.push({ on: false, label: "Treinos completos" });
+  }
+
+  items.push({ on: !!f.diet, label: "Plano de dieta personalizado" });
+  items.push({ on: !!f.supplements, label: "Acompanhamento de suplementação" });
+  if (f.juices) {
+    items.push({ on: true, label: "Sucos da Kath" });
+  }
+
+  // Chat
+  if (typeof f.chat_sla_h === "number") {
+    items.push({ on: true, label: `Chat com Kath/Sidney (SLA ${f.chat_sla_h}h)` });
+  } else {
+    items.push({ on: false, label: "Chat com Kath/Sidney" });
+  }
+
+  // Reavaliação
+  if (f.reavaliation === "biweekly") {
+    items.push({ on: true, label: "Reavaliação quinzenal" });
+  } else if (f.reavaliation === "monthly") {
+    items.push({ on: true, label: "Reavaliação mensal" });
+  }
+
+  // Vídeo 1-1
+  if (typeof f.video_call_per_month === "number" && f.video_call_per_month > 0) {
+    items.push({ on: true, label: `${f.video_call_per_month}x vídeo 1-1 por mês` });
+  }
+
+  // Cupons / afiliados
+  if (f.affiliate_clicks_per_month === "unlimited") {
+    items.push({ on: true, label: "Cupons + afiliados ilimitados" });
+  } else if (typeof f.affiliate_clicks_per_month === "number") {
+    items.push({ on: true, label: `${f.affiliate_clicks_per_month} clicks de afiliado/mês` });
+  }
+
+  // Estética
+  if (f.estetica_book_all) {
+    items.push({ on: true, label: "Agenda todos os serviços de estética" });
+  }
+
+  // Cashback + descontos
+  if (plan.cashback_pct > 0) {
+    items.push({ on: true, label: `Cashback ${plan.cashback_pct}%` });
+  }
+  if (plan.store_discount_pct > 0) {
+    items.push({ on: true, label: `${plan.store_discount_pct}% off na loja` });
+  }
+  if (plan.estetica_discount_pct > 0) {
+    items.push({ on: true, label: `${plan.estetica_discount_pct}% off na estética` });
+  }
+
+  return items;
 }
