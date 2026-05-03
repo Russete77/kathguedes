@@ -133,7 +133,7 @@ export async function updateBookingStatus(
 
   const { data: bookingRaw } = await supabase
     .from("estetica_bookings")
-    .select("user_id, estetica_services(title)")
+    .select("user_id, total_cents, estetica_services(title), profiles(plan_tier)")
     .eq("id", id)
     .single();
 
@@ -143,6 +143,34 @@ export async function updateBookingStatus(
     .eq("id", id);
 
   if (error) throw new Error(error.message);
+
+  // Cashback: na transição para 'done', creditar % do total pago em cash
+  if (status === "done" && bookingRaw?.user_id) {
+    try {
+      const planTier = ((bookingRaw as unknown as { profiles: { plan_tier: PlanTier } | null })
+        .profiles?.plan_tier) ?? "free";
+      const cashbackPct = await getCashbackPct(planTier);
+      const earned = Math.floor((bookingRaw.total_cents ?? 0) * cashbackPct / 100);
+      if (earned > 0) {
+        const { data: rs } = await supabase
+          .from("revenue_streams")
+          .select("id")
+          .eq("type", "estetica")
+          .eq("reference_id", id)
+          .eq("status", "confirmed")
+          .maybeSingle();
+        if (rs?.id) {
+          await creditWalletCents({
+            userId: bookingRaw.user_id as string,
+            amountCents: earned,
+            sourceStreamId: rs.id,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[updateBookingStatus] cashback credit failed", e);
+    }
+  }
 
   // Notificar user
   if (bookingRaw?.user_id) {

@@ -13,6 +13,9 @@ import {
   updateConsultationSchema,
   parseFormData,
 } from "@/lib/validations";
+import { creditWalletCents } from "@/lib/billing/wallet";
+import { getCashbackPct } from "@/lib/billing/plans";
+import type { PlanTier } from "@/lib/supabase/types";
 
 // ── Auth helper ──
 
@@ -63,7 +66,7 @@ export async function createWorkout(formData: FormData) {
   if (error) throw new Error(error.message);
 
   if (data.is_published) {
-    notifyByPlan(data.required_plan as "free" | "start" | "pro" | "vip", {
+    notifyByPlan(data.required_plan as PlanTier, {
       title: "Novo treino disponível!",
       body: `Kath publicou: ${data.title}`,
       icon: "PlayCircle",
@@ -687,12 +690,40 @@ export async function updateOrderStatus(id: string, status: string, trackingCode
   const { error } = await supabase.from("orders").update(update).eq("id", id);
   if (error) throw new Error(error.message);
 
-  // Notificar assinante sobre status do pedido
+  // Buscar order completa pra usar em cashback + notify
   const { data: order } = await supabase
     .from("orders")
-    .select("user_id")
+    .select("user_id, total_cents, profiles(plan_tier)")
     .eq("id", id)
     .single();
+
+  // Cashback: na transição para 'delivered', creditar % do total pago em cash
+  if (status === "delivered" && order?.user_id) {
+    try {
+      const planTier = ((order as unknown as { profiles: { plan_tier: PlanTier } | null })
+        .profiles?.plan_tier) ?? "free";
+      const cashbackPct = await getCashbackPct(planTier);
+      const earned = Math.floor((order.total_cents ?? 0) * cashbackPct / 100);
+      if (earned > 0) {
+        const { data: rs } = await supabase
+          .from("revenue_streams")
+          .select("id")
+          .eq("type", "loja")
+          .eq("reference_id", id)
+          .eq("status", "confirmed")
+          .maybeSingle();
+        if (rs?.id) {
+          await creditWalletCents({
+            userId: order.user_id,
+            amountCents: earned,
+            sourceStreamId: rs.id,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[updateOrderStatus] cashback credit failed", e);
+    }
+  }
 
   if (order?.user_id) {
     const messages: Record<string, { title: string; body: string }> = {
