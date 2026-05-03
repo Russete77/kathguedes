@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "crypto";
 import { ASAAS_CONFIG } from "./config";
+import { planTierFromValue as planTierFromValueDynamic } from "@/lib/billing/plans";
 import type { PlanTier } from "@/lib/supabase/types";
 
 /**
@@ -47,11 +48,9 @@ export function verifyWebhookToken(headerToken: string | null): boolean {
 }
 
 /**
- * Determina o plan_tier baseado no valor da assinatura.
+ * Resolve plan_tier a partir do valor pago. Lookup dinâmico em `plans` table.
+ * Async porque depende de cache TTL 60s do `lib/billing/plans`.
  */
-export function planTierFromValue(value: number): PlanTier {
-  if (value >= 99) return "vip";
-  if (value >= 39) return "pro";
-  if (value >= 19) return "start";
-  return "free";
+export async function planTierFromValue(value: number): Promise<PlanTier> {
+  return planTierFromValueDynamic(value);
 }

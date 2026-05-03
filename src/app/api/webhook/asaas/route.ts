@@ -3,226 +3,411 @@ import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { notifyUser } from "@/lib/notifications";
 import {
   verifyWebhookToken,
-  planTierFromValue,
   type AsaasWebhookPayload,
-  type AsaasPaymentEvent,
 } from "@/lib/asaas/webhook";
+import { parseExternalReference } from "@/lib/asaas/external-reference";
+import { planTierFromValue, getCashbackPct } from "@/lib/billing/plans";
+import { recordRevenueStream, refundRevenueStream } from "@/lib/billing/revenue";
+import { creditWalletCents } from "@/lib/billing/wallet";
+import { handleApiError } from "@/lib/api-error";
+import type { PlanTier } from "@/lib/supabase/types";
 
 /**
  * POST /api/webhook/asaas
  * Processa eventos de pagamento do Asaas.
- * Atualiza plan_tier e subscription_status no profiles.
+ * Atualiza plan_tier e subscription_status no profiles, alimenta revenue_streams,
+ * dispara compute_commissions, credita cashback (mensalidades).
+ *
+ * Idempotência: tabela webhook_events com PK (payment_id:event).
+ * Em erro de handler: retorna 5xx para Asaas reentregar.
  *
  * Docs: https://docs.asaas.com/docs/payment-events
  */
 export async function POST(req: NextRequest) {
-  // 1. Verificar autenticidade do webhook
-  const token = req.headers.get("asaas-access-token");
-  if (!verifyWebhookToken(token)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // 2. Parse payload
-  let payload: AsaasWebhookPayload;
   try {
-    payload = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const { event, payment } = payload;
-  if (!payment?.customer) {
-    return NextResponse.json({ error: "Missing customer" }, { status: 400 });
-  }
-
-  // 3. Supabase admin client (bypass RLS)
-  const supabase = createAdminSupabaseClient();
-
-  // 3.5 Idempotency atômica — INSERT ON CONFLICT.
-  // Asaas reentrega webhooks ao receber 5xx ou timeout. Um SELECT-then-INSERT
-  // sequencial deixa janela de race onde duas execuções paralelas processam o
-  // mesmo evento. Confiamos na PRIMARY KEY (payment_id) de webhook_events:
-  // o INSERT falha se já existe → tratamos como duplicata.
-  const idempotencyKey = `${payment.id}:${event}`;
-  const { error: insertError } = await supabase
-    .from("webhook_events")
-    .insert({ payment_id: idempotencyKey, event });
-
-  if (insertError) {
-    // 23505 = unique_violation no Postgres. Qualquer outra falha é problema real.
-    if (insertError.code === "23505") {
-      console.log(`[webhook] Already processed ${idempotencyKey}, skipping`);
-      return NextResponse.json({ received: true, duplicate: true });
+    // 1. Verificar autenticidade do webhook
+    const token = req.headers.get("asaas-access-token");
+    if (!verifyWebhookToken(token)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    console.error("[webhook] Failed to record event:", insertError);
-    return NextResponse.json({ error: "Failed to record event" }, { status: 500 });
-  }
 
-  // 4. Se for pagamento de booking da estética, processa e retorna
-  const extRef = payment.externalReference || "";
-  if (extRef.startsWith("estetica:")) {
-    const bookingId = extRef.replace("estetica:", "");
-    if (event === "PAYMENT_CONFIRMED" || event === "PAYMENT_RECEIVED") {
-      const { data: booking } = await supabase
-        .from("estetica_bookings")
-        .select("id, user_id, estetica_services(title)")
-        .eq("id", bookingId)
-        .single();
+    // 2. Parse payload
+    let payload: AsaasWebhookPayload;
+    try {
+      payload = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
-      if (booking) {
-        await supabase
-          .from("estetica_bookings")
-          .update({
-            status: "confirmed",
-            paid_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", bookingId);
+    const { event, payment } = payload;
+    if (!payment?.id) {
+      return NextResponse.json({ error: "Missing payment id" }, { status: 400 });
+    }
 
-        notifyUser(booking.user_id as string, {
-          title: "Pagamento confirmado!",
-          body: `Agendamento da estética confirmado. Até logo!`,
-          icon: "Check",
-          url: "/kath-estetica/meus-agendamentos",
-        }).catch(() => {});
+    const supabase = createAdminSupabaseClient();
+
+    // 3. Idempotência atômica via webhook_events
+    const idempotencyKey = `${payment.id}:${event}`;
+    const { error: insertError } = await supabase
+      .from("webhook_events")
+      .insert({ payment_id: idempotencyKey, event });
+
+    if (insertError) {
+      if (insertError.code === "23505") {
+        console.log(`[webhook] Already processed ${idempotencyKey}, skipping`);
+        return NextResponse.json({ received: true, duplicate: true });
       }
+      console.error("[webhook] Failed to record event:", insertError);
+      return NextResponse.json({ error: "Failed to record event" }, { status: 500 });
     }
-    return NextResponse.json({ received: true });
-  }
 
-  // 5. Buscar profile pelo asaas_customer_id (fluxo de assinatura)
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, plan_tier")
-    .eq("asaas_customer_id", payment.customer)
-    .single();
+    // 4. Roteamento via externalReference
+    const ref = parseExternalReference(payment.externalReference);
 
-  if (!profile) {
-    console.warn(`[webhook] Customer ${payment.customer} not found in profiles`);
-    return NextResponse.json({ received: true });
-  }
-
-  // 5. Processar evento
-  const handlers: Partial<Record<AsaasPaymentEvent, () => Promise<void>>> = {
-    // Pagamento confirmado → ativar plano + criar consultoria VIP
-    async PAYMENT_CONFIRMED() {
-      const newTier = planTierFromValue(payment.value);
-      const endsAt = new Date();
-      endsAt.setDate(endsAt.getDate() + 30);
-
-      await supabase
-        .from("profiles")
-        .update({
-          plan_tier: newTier,
-          subscription_status: "active",
-          subscription_ends_at: endsAt.toISOString(),
-          asaas_subscription_id: payment.subscription,
-        })
-        .eq("id", profile.id);
-
-      // ── Auto-criar consultoria para VIP ──
-      if (newTier === "vip") {
-        // Verificar se já tem consultoria ativa (pending ou in_progress)
-        const { data: existingConsultation } = await supabase
-          .from("consultations")
+    // 5. Eventos não-positivos (overdue, deleted, refunded) tratados antes
+    if (event === "PAYMENT_OVERDUE") {
+      if (payment.customer) {
+        const { data: profile } = await supabase
+          .from("profiles")
           .select("id")
-          .eq("user_id", profile.id)
-          .in("status", ["pending", "in_progress"])
-          .limit(1)
-          .maybeSingle();
-
-        if (!existingConsultation) {
-          const validUntil = new Date();
-          validUntil.setDate(validUntil.getDate() + 30);
-
-          await supabase.from("consultations").insert({
-            user_id: profile.id,
-            package_type: "mensal",
-            status: "pending",
-            valid_until: validUntil.toISOString(),
-          });
-
+          .eq("asaas_customer_id", payment.customer)
+          .single();
+        if (profile) {
+          await supabase
+            .from("profiles")
+            .update({ subscription_status: "past_due" })
+            .eq("id", profile.id);
           notifyUser(profile.id, {
-            title: "Sua consultoria está disponível!",
-            body: "Preencha a ficha de anamnese para a Kath montar seu plano personalizado de treino e dieta.",
-            icon: "ClipboardList",
-            url: "/consultoria/anamnese",
+            title: "Pagamento pendente",
+            body: "Sua assinatura está com pagamento atrasado. Regularize para manter o acesso.",
+            icon: "AlertTriangle",
+            url: "/planos",
           }).catch(() => {});
         }
       }
-
-      notifyUser(profile.id, {
-        title: "Pagamento confirmado!",
-        body: `Seu plano ${newTier.toUpperCase()} está ativo. Aproveite!`,
-        icon: "Check",
-        url: "/dashboard",
-      }).catch(() => {});
-    },
-
-    // Pagamento recebido (saldo disponível) → manter ativo
-    async PAYMENT_RECEIVED() {
-      await supabase
-        .from("profiles")
-        .update({ subscription_status: "active" })
-        .eq("id", profile.id);
-    },
-
-    // Pagamento atrasado → marcar past_due
-    async PAYMENT_OVERDUE() {
-      await supabase
-        .from("profiles")
-        .update({ subscription_status: "past_due" })
-        .eq("id", profile.id);
-
-      notifyUser(profile.id, {
-        title: "Pagamento pendente",
-        body: "Sua assinatura está com pagamento atrasado. Regularize para manter o acesso.",
-        icon: "AlertTriangle",
-        url: "/planos",
-      }).catch(() => {});
-    },
-
-    // Assinatura cancelada/removida → agendar downgrade
-    async PAYMENT_DELETED() {
-      await supabase
-        .from("profiles")
-        .update({ subscription_status: "canceled" })
-        .eq("id", profile.id);
-    },
-
-    // Reembolso → downgrade imediato para free
-    async PAYMENT_REFUNDED() {
-      await supabase
-        .from("profiles")
-        .update({
-          plan_tier: "free",
-          subscription_status: "canceled",
-          asaas_subscription_id: null,
-        })
-        .eq("id", profile.id);
-    },
-
-    // Reembolso parcial → manter plano mas logar
-    async PAYMENT_PARTIALLY_REFUNDED() {
-      console.warn(
-        `[webhook] Partial refund for ${profile.id}, payment ${payment.id}`
-      );
-    },
-  };
-
-
-  // Dispatch — se nao temos handler para o evento, apenas logamos e retornamos 200
-  // (Asaas requer 2xx para nao reentregar).
-  const handler = handlers[event as AsaasPaymentEvent];
-  if (handler) {
-    try {
-      await handler();
-    } catch (err) {
-      console.error("[webhook] Handler error:", { event, payment_id: payment.id, err });
+      return NextResponse.json({ received: true });
     }
-  } else {
-    console.log(`[webhook] No handler for event ${event}, skipping`);
+
+    if (event === "PAYMENT_DELETED") {
+      if (payment.customer) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("asaas_customer_id", payment.customer)
+          .single();
+        if (profile) {
+          await supabase
+            .from("profiles")
+            .update({ subscription_status: "canceled" })
+            .eq("id", profile.id);
+        }
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    if (event === "PAYMENT_REFUNDED") {
+      // Marcar revenue_stream como refunded (e allocations como failed)
+      const { data: _existingStreamRaw } = await supabase
+        .from("revenue_streams")
+        .select("id, type")
+        .eq("asaas_payment_id", payment.id)
+        .maybeSingle();
+      const existingStream = _existingStreamRaw as unknown as { id: string; type: string } | null;
+
+      if (existingStream) {
+        await refundRevenueStream(existingStream.id);
+      }
+
+      // Se era mensalidade, downgrade do profile
+      if ((!existingStream || existingStream.type === "mensalidade") && payment.customer) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("asaas_customer_id", payment.customer)
+          .single();
+        if (profile) {
+          await supabase
+            .from("profiles")
+            .update({
+              plan_tier: "free",
+              subscription_status: "canceled",
+              asaas_subscription_id: null,
+            })
+            .eq("id", profile.id);
+        }
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    if (event === "PAYMENT_PARTIALLY_REFUNDED") {
+      console.warn(`[webhook] Partial refund payment ${payment.id} — manual review recommended`);
+      return NextResponse.json({ received: true });
+    }
+
+    // 6. PAYMENT_CONFIRMED ou PAYMENT_RECEIVED → fluxo positivo
+    if (event !== "PAYMENT_CONFIRMED" && event !== "PAYMENT_RECEIVED") {
+      console.log(`[webhook] No handler for event ${event}, skipping`);
+      return NextResponse.json({ received: true });
+    }
+
+    // Roteamento por externalReference
+    if (!ref) {
+      console.warn("[webhook] payment without externalReference", { id: payment.id });
+      return NextResponse.json({ received: true });
+    }
+
+    if (ref.type === "estetica") {
+      await handleEsteticaPayment(supabase, payment, ref.reference_id);
+    } else if (ref.type === "loja") {
+      await handleLojaPayment(supabase, payment, ref.reference_id);
+    } else {
+      // mensalidade
+      await handleMensalidadePayment(supabase, payment, ref.reference_id);
+    }
+
+    return NextResponse.json({ received: true });
+  } catch (err) {
+    // Em erro: retornar 5xx para Asaas reentregar (idempotência protege contra duplicação)
+    return handleApiError(err, "POST /api/webhook/asaas");
+  }
+}
+
+// ============================================
+// Handlers por tipo
+// ============================================
+
+type SupabaseAdmin = ReturnType<typeof createAdminSupabaseClient>;
+
+async function handleEsteticaPayment(
+  supabase: SupabaseAdmin,
+  payment: AsaasWebhookPayload["payment"],
+  bookingId: string,
+) {
+  const { data: _bookingRaw } = await supabase
+    .from("estetica_bookings")
+    .select("id, user_id, total_cents, cashback_used_cents, service_id, estetica_services(cost_cents)")
+    .eq("id", bookingId)
+    .single();
+  type BookingRow = {
+    id: string;
+    user_id: string;
+    total_cents: number;
+    cashback_used_cents: number | null;
+    service_id: string;
+    estetica_services: { cost_cents: number } | null;
+  };
+  const booking = _bookingRaw as unknown as BookingRow | null;
+
+  if (!booking) {
+    console.error("[webhook] estetica booking not found", { bookingId });
+    return;
   }
 
-  return NextResponse.json({ received: true });
+  await supabase
+    .from("estetica_bookings")
+    .update({
+      status: "confirmed",
+      paid_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId);
+
+  const serviceCost = booking.estetica_services?.cost_cents ?? 0;
+
+  await recordRevenueStream({
+    type: "estetica",
+    category: null,
+    user_id: booking.user_id,
+    reference_type: "booking",
+    reference_id: bookingId,
+    asaas_payment_id: payment.id,
+    gross_cents: Math.round(payment.value * 100) + (booking.cashback_used_cents ?? 0),
+    cost_cents: serviceCost,
+    cashback_used_cents: booking.cashback_used_cents ?? 0,
+    occurred_at: new Date().toISOString(),
+  });
+
+  notifyUser(booking.user_id, {
+    title: "Pagamento confirmado!",
+    body: "Agendamento da estética confirmado. Até logo!",
+    icon: "Check",
+    url: "/kath-estetica/meus-agendamentos",
+  }).catch(() => {});
+}
+
+async function handleLojaPayment(
+  supabase: SupabaseAdmin,
+  payment: AsaasWebhookPayload["payment"],
+  orderId: string,
+) {
+  const { data: _orderRaw } = await supabase
+    .from("orders")
+    .select("id, user_id, items, cashback_used_cents")
+    .eq("id", orderId)
+    .single();
+  type OrderItem = { product_id: string; quantity: number; cost_cents?: number; module?: string; price_cents: number };
+  type OrderRow = { id: string; user_id: string; items: OrderItem[] | null; cashback_used_cents: number | null };
+  const order = _orderRaw as unknown as OrderRow | null;
+
+  if (!order) {
+    console.error("[webhook] loja order not found", { orderId });
+    return;
+  }
+
+  await supabase
+    .from("orders")
+    .update({ status: "paid", paid_at: new Date().toISOString(), asaas_payment_id: payment.id })
+    .eq("id", orderId);
+
+  const items = order.items ?? [];
+  const totalCost = items.reduce((sum, it) => sum + (it.cost_cents ?? 0) * it.quantity, 0);
+  const dominantModule = computeDominantModule(items);
+
+  await recordRevenueStream({
+    type: "loja",
+    category: dominantModule,
+    user_id: order.user_id,
+    reference_type: "order",
+    reference_id: orderId,
+    asaas_payment_id: payment.id,
+    gross_cents: Math.round(payment.value * 100) + (order.cashback_used_cents ?? 0),
+    cost_cents: totalCost,
+    cashback_used_cents: order.cashback_used_cents ?? 0,
+    occurred_at: new Date().toISOString(),
+  });
+
+  notifyUser(order.user_id, {
+    title: "Pagamento confirmado!",
+    body: "Seu pedido na loja foi confirmado.",
+    icon: "Check",
+    url: "/loja/pedidos",
+  }).catch(() => {});
+}
+
+async function handleMensalidadePayment(
+  supabase: SupabaseAdmin,
+  payment: AsaasWebhookPayload["payment"],
+  userId: string,
+) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", userId)
+    .single();
+
+  if (!profile) {
+    console.warn("[webhook] mensalidade profile not found", { userId });
+    return;
+  }
+
+  const newTier = await planTierFromValue(payment.value);
+  const endsAt = new Date();
+  endsAt.setDate(endsAt.getDate() + 30);
+
+  await supabase
+    .from("profiles")
+    .update({
+      plan_tier: newTier,
+      subscription_status: "active",
+      subscription_ends_at: endsAt.toISOString(),
+      asaas_subscription_id: payment.subscription,
+    })
+    .eq("id", profile.id);
+
+  // Revenue stream + commissions
+  const stream = await recordRevenueStream({
+    type: "mensalidade",
+    category: newTier,
+    user_id: profile.id,
+    reference_type: "subscription",
+    reference_id: userId,
+    asaas_payment_id: payment.id,
+    gross_cents: Math.round(payment.value * 100),
+    cost_cents: 0,
+    cashback_used_cents: 0,
+    occurred_at: new Date().toISOString(),
+  });
+
+  // Cashback imediato em mensalidade
+  const cashbackPct = await getCashbackPct(newTier);
+  const cashbackCents = Math.floor(Math.round(payment.value * 100) * cashbackPct / 100);
+  if (cashbackCents > 0) {
+    await creditWalletCents({
+      userId: profile.id,
+      amountCents: cashbackCents,
+      sourceStreamId: stream.id,
+    });
+  }
+
+  // Auto-criar consultoria
+  await ensureConsultationForTier(supabase, profile.id, newTier);
+
+  notifyUser(profile.id, {
+    title: "Pagamento confirmado!",
+    body: `Seu plano ${newTier.toUpperCase()} está ativo. Aproveite!`,
+    icon: "Check",
+    url: "/dashboard",
+  }).catch(() => {});
+}
+
+// ============================================
+// Helpers
+// ============================================
+
+function computeDominantModule(
+  items: Array<{ module?: string }>,
+): string | null {
+  if (items.length === 0) return null;
+  const counts = new Map<string, number>();
+  for (const it of items) {
+    const m = it.module ?? "geral";
+    counts.set(m, (counts.get(m) ?? 0) + 1);
+  }
+  let max = 0;
+  let dom: string | null = null;
+  for (const [k, v] of counts) {
+    if (v > max) { max = v; dom = k; }
+  }
+  return dom;
+}
+
+async function ensureConsultationForTier(
+  supabase: SupabaseAdmin,
+  userId: string,
+  tier: PlanTier,
+) {
+  const tierToPackage: Partial<Record<PlanTier, "mensal" | "premium">> = {
+    plano2: "mensal",
+    plano3: "mensal",
+    atleta: "premium",
+  };
+  const packageType = tierToPackage[tier];
+  if (!packageType) return;
+
+  const { data: existing } = await supabase
+    .from("consultations")
+    .select("id")
+    .eq("user_id", userId)
+    .in("status", ["pending", "in_progress"])
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return;
+
+  const validUntil = new Date();
+  validUntil.setDate(validUntil.getDate() + 30);
+
+  await supabase.from("consultations").insert({
+    user_id: userId,
+    package_type: packageType,
+    status: "pending",
+    valid_until: validUntil.toISOString(),
+  });
+
+  notifyUser(userId, {
+    title: "Sua consultoria está disponível!",
+    body: "Preencha a ficha de anamnese para a Kath montar seu plano personalizado.",
+    icon: "ClipboardList",
+    url: "/consultoria/anamnese",
+  }).catch(() => {});
 }
