@@ -1,7 +1,9 @@
 # Setor: Chat
 
+> **2026-05-02 — Refactor do modelo de mensagens.** Coluna `messages.is_from_kath` (boolean) substituída por `messages.sender_role` enum `('user'|'kath'|'sidney'|'admin')` — admin escolhe se responde como Kath ou Sidney via dropdown em `/admin/chat`. Política de envio mudou de `plan_tier = 'vip'` para `plan_tier IN ('plano3','atleta')` — Plano 3 (R$ 99,90, SLA 48h) e Atleta (R$ 309,90, SLA 12h prioritário + vídeo 1-1 mensal). Detalhes em [`docs/wiki/plataforma/financeiro.md`](../plataforma/financeiro.md).
+
 ## 1. Visão geral
-- **Propósito:** Canal de mensagens diretas entre assinantes VIP e a Kath (admin), com persistência em Supabase e atualizações em tempo real via Supabase Realtime. Acesso de envio restrito a `plan_tier = 'vip'`.
+- **Propósito:** Canal de mensagens diretas entre assinantes Plano 3+ e a equipe (Kath ou Sidney), com persistência em Supabase e atualizações em tempo real via Supabase Realtime. Acesso de envio restrito a `plan_tier IN ('plano3','atleta')` via RLS.
 - **Quem usa:** Usuário final VIP (em `/chat`) e admin/Kath (em `/admin/chat`, com inbox agrupada por assinante).
 - **Status percebido:** production — fluxos de leitura/escrita, realtime e push notification de resposta da admin estão implementados; flag `is_read` existe na tabela mas nenhuma rotina de marcação como lida foi encontrada nos arquivos do setor (ver "Observações").
 

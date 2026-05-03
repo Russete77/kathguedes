@@ -1,7 +1,9 @@
 # Setor: Loja
 
+> **2026-05-02 — Atualizações financeiras.** Coluna `cost_cents` (CMV) adicionada a `products`; colunas `discount_start/pro/vip` removidas — desconto agora vem de `plans.store_discount_pct` em runtime via `getStoreDiscountPct(planTier)`. Checkout aceita `use_cashback_cents` (clamp 50% + saldo via `clampCashbackCents`). Coluna `orders.cashback_used_cents` rastreia quanto foi consumido. Cashback é creditado quando admin marca pedido como `delivered` (`updateOrderStatus`). Detalhes em [`docs/wiki/plataforma/financeiro.md`](../plataforma/financeiro.md).
+
 ## 1. Visão geral
-- **Propósito:** E-commerce de produtos físicos da marca Kath (stickers, camisetas, acessórios, suplementos). Cobre vitrine, carrinho, cotação de frete multi-provedor, checkout com cobrança Pix via Asaas, acompanhamento de pedidos pelo cliente e administração (CRUD de produtos, gestão de pedidos, geração de etiquetas Melhor Envio).
+- **Propósito:** E-commerce de produtos físicos da marca Kath (stickers, camisetas, acessórios, suplementos). Cobre vitrine, carrinho, cotação de frete multi-provedor, checkout com cobrança Pix via Asaas (com cashback opcional aplicado no payload), acompanhamento de pedidos pelo cliente e administração (CRUD de produtos, gestão de pedidos, geração de etiquetas Melhor Envio).
 - **Quem usa:** Ambos — usuário final autenticado (vitrine, carrinho, checkout, "Meus Pedidos") e admin (CRUD de produtos, mudança de status, geração de etiquetas).
 - **Status percebido:** production (fluxo end-to-end implementado: produtos → carrinho → frete → checkout → Pix Asaas → pagamento → admin envia → tracking). Integrações 99 Entrega e Lalamove ainda estão como stubs (HMAC simplificado, geocoding pendente).
 

@@ -2,7 +2,7 @@
 
 Mapa técnico completo do KathApp. Cada setor vira um documento independente seguindo o template padronizado de 10 seções.
 
-> Gerado em 2026-04-28 como parte da **Fase A — Mapa do que existe**. Próximas fases: B (Auditoria de gaps/bugs), C (Diagramas de fluxo), D (Revisão arquitetural).
+> Gerado em 2026-04-28 como parte da **Fase A — Mapa do que existe**. Auditoria CTO concluída em 2026-05-01 (`docs/audit/2026-05-01-cto-audit.md`). **Refactor do modelo financeiro completo em 2026-05-02** — 6 tiers de plano, receita unificada, comissões automáticas, cashback wallet. Documentação consolidada em [`plataforma/financeiro.md`](plataforma/financeiro.md).
 
 ## Stack
 

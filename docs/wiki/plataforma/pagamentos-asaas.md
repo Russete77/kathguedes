@@ -1,8 +1,10 @@
 # Setor: Pagamentos (Asaas)
 
+> **2026-05-02 — Refactor do webhook.** O handler agora alimenta `revenue_streams` (que dispara `compute_commissions`), credita cashback (mensalidade imediato; loja/estética nas transições delivered/done), e cria consultoria automática por tier (`plano2`/`plano3` → `mensal`; `atleta` → `premium`). `planTierFromValue` virou async e delega para `lib/billing/plans` (lookup dinâmico em `plans` table). Em erro de handler, retorna 5xx para Asaas reentregar. Detalhes em [`docs/wiki/plataforma/financeiro.md`](financeiro.md).
+
 ## 1. Visão geral
 
-- **Propósito:** Integração com o gateway de pagamentos brasileiro **Asaas** (PIX, Boleto e Cartão de Crédito) para cobrar assinaturas mensais dos planos KathApp (`start`, `pro`, `vip`) e cobranças avulsas de bookings da Estética. Inclui cliente HTTP, helpers de checkout, webhook receiver com idempotência e despacho de eventos para os domínios consumidores.
+- **Propósito:** Integração com o gateway de pagamentos brasileiro **Asaas** (PIX, Boleto e Cartão de Crédito) para cobrar assinaturas mensais dos 5 planos pagos do KathApp (`acesso`/`plano1`/`plano2`/`plano3`/`atleta`) e cobranças avulsas de bookings da Estética e pedidos da Loja. Inclui cliente HTTP, helpers de checkout, webhook receiver com idempotência, alimentação de receita unificada (`revenue_streams`) e despacho de eventos para os domínios consumidores.
 - **Quem usa:** Backend (server-only). É invocado pelo usuário final indiretamente via rotas `/api/checkout/*` (assinaturas) e `/api/estetica/bookings/[id]/payment` (Estética). Admins não interagem diretamente.
 - **Status percebido:** **production** — sandbox vs produção controlado por `ASAAS_ENV`; webhook protegido por token + idempotência atômica via `webhook_events` (PRIMARY KEY); cobre os 6 eventos de pagamento da documentação Asaas.
 

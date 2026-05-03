@@ -1,7 +1,9 @@
 # Setor: Perfil, Onboarding & Planos
 
+> **2026-05-02 — Modelo financeiro reformulado.** Os 4 tiers antigos (FREE/START/PRO/VIP) foram substituídos por 6 (`free`, `acesso`, `plano1`, `plano2`, `plano3`, `atleta`), todos admin-editáveis na tabela `plans`. `/perfil` agora exibe carteira de cashback (saldo ativo + extrato em `/perfil/cashback`). Detalhes em [`docs/wiki/plataforma/financeiro.md`](../plataforma/financeiro.md).
+
 ## 1. Visão geral
-- **Propósito:** Cobrir o ciclo de vida do usuário autenticado dentro do KathApp — desde o onboarding inicial (telefone + interesses) até a visualização do perfil, dashboard pessoal e contratação/upgrade de planos pagos (Free, Start, Pro, VIP) via Asaas. Concentra a leitura/exibição do estado da assinatura e o ponto de entrada para o checkout recorrente.
+- **Propósito:** Cobrir o ciclo de vida do usuário autenticado dentro do KathApp — desde o onboarding inicial (telefone + interesses) até a visualização do perfil, dashboard pessoal e contratação/upgrade dos 6 planos via Asaas. Concentra a leitura/exibição do estado da assinatura, **carteira de cashback** e o ponto de entrada para o checkout recorrente.
 - **Quem usa:** Usuário final autenticado (Clerk). Admin não tem rotas próprias neste setor — visualiza/edita perfis pelo painel admin (fora do escopo).
 - **Status percebido:** **production** — todas as rotas estão implementadas, com integração Asaas funcional, redirecionamento de onboarding via middleware/layout e leitura de `profiles` no Supabase. Pequenos pontos beta listados em §9.
 

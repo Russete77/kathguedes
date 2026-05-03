@@ -1,5 +1,7 @@
 # Setor: Kath Estética
 
+> **2026-05-02 — Atualizações financeiras.** Colunas `cost_cents` (custo médio de insumos) e `requires_paid_plan` (boolean) adicionadas a `estetica_services`; colunas `discount_start/pro/vip` removidas — desconto agora vem de `plans.estetica_discount_pct` em runtime via `getEsteticaDiscountPct(planTier)`. Booking aceita `use_cashback_cents`. Coluna `estetica_bookings.cashback_used_cents` rastreia consumo. Cashback creditado quando admin marca booking como `done` (`updateBookingStatus`). Serviços com `requires_paid_plan=true` (lavagem detalhada, vitrificação) não podem ser agendados por user FREE. Detalhes em [`docs/wiki/plataforma/financeiro.md`](../plataforma/financeiro.md).
+
 ## 1. Visão geral
 - **Propósito:** Módulo "Kath Guedes Estética Moto" — catálogo de serviços de estética automotiva (lavagem, polimento, vitrificação, higienização, cristalização), agendamento online com slots dinâmicos, pagamento via Pix (Asaas) e programa de fidelidade "4 fotos aprovadas no mês = 5ª lavagem grátis". Integração total no app KathApp para usuário final + painel admin para gestão de agenda, serviços, portfólio e aprovação de fotos.
 - **Quem usa:** Ambos. Usuário final consome em `/kath-estetica/*`; admin (Clerk role=`admin`) gerencia em `/admin/kath-estetica/*`.
