@@ -19,9 +19,7 @@ interface ProductRow {
   stock: number;
   description: string | null;
   is_active: boolean;
-  discount_start: number;
-  discount_pro: number;
-  discount_vip: number;
+  cost_cents: number | null;
   weight_kg: number | null;
   height_cm: number | null;
   width_cm: number | null;

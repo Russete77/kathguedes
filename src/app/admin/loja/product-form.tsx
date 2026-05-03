@@ -18,6 +18,7 @@ interface Product {
   title: string;
   image_url: string;
   price_cents: number;
+  cost_cents: number | null;
   compare_price: number | null;
   category: string;
   module: string;
@@ -27,9 +28,6 @@ interface Product {
   height_cm: number | null;
   width_cm: number | null;
   length_cm: number | null;
-  discount_start: number | null;
-  discount_pro: number | null;
-  discount_vip: number | null;
 }
 
 interface ProductFormProps {
@@ -102,21 +100,21 @@ export function ProductForm({ product, children }: ProductFormProps) {
           />
           <div className="grid grid-cols-3 gap-3">
             <Input
-              name="price"
-              label="Preço (R$)"
+              name="price_cents"
+              label="Preço (centavos)"
               type="number"
-              step="0.01"
-              placeholder="29.90"
-              defaultValue={product ? (product.price_cents / 100).toFixed(2) : ""}
+              min={1}
+              placeholder="4990"
+              defaultValue={product?.price_cents}
               required
             />
             <Input
               name="compare_price"
-              label="De (riscado)"
+              label="De (centavos)"
               type="number"
-              step="0.01"
-              placeholder="49.90"
-              defaultValue={product?.compare_price ? (product.compare_price / 100).toFixed(2) : ""}
+              min={0}
+              placeholder="7990"
+              defaultValue={product?.compare_price ?? ""}
             />
             <Input
               name="stock"
@@ -127,6 +125,16 @@ export function ProductForm({ product, children }: ProductFormProps) {
               required
             />
           </div>
+          <label className="block">
+            <span className="text-[12px] font-semibold text-gray-2 tracking-[0.06em] uppercase">Custo do fornecedor (centavos) — CMV</span>
+            <Input
+              name="cost_cents"
+              type="number"
+              min={0}
+              defaultValue={product?.cost_cents ?? 0}
+            />
+            <span className="text-xs text-gray-2">Usado no cálculo de margem para comissões. Ex: 12000 = R$ 120,00</span>
+          </label>
           {/* Peso e dimensões (frete) */}
           <div className="grid grid-cols-4 gap-3">
             <Input
@@ -185,28 +193,9 @@ export function ProductForm({ product, children }: ProductFormProps) {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <Input
-              name="discount_start"
-              label="Desc. Start (%)"
-              type="number"
-              placeholder="5"
-              defaultValue={product?.discount_start || ""}
-            />
-            <Input
-              name="discount_pro"
-              label="Desc. Pro (%)"
-              type="number"
-              placeholder="10"
-              defaultValue={product?.discount_pro || ""}
-            />
-            <Input
-              name="discount_vip"
-              label="Desc. VIP (%)"
-              type="number"
-              placeholder="20"
-              defaultValue={product?.discount_vip || ""}
-            />
+          <div className="rounded-md bg-bg-2 border border-gray-4 p-3 text-sm text-gray-2">
+            <strong className="text-gray-1">Descontos por plano:</strong> aplicados automaticamente
+            conforme a tabela <a href="/admin/plans" className="underline text-pink">Planos</a>.
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancelar</Button>

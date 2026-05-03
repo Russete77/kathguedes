@@ -52,19 +52,34 @@ export const createProductSchema = z.object({
   title: z.string().min(1, "Título obrigatório").max(200),
   description: z.string().max(2000).nullable().optional(),
   image_url: z.string().url("URL da imagem inválida"),
-  price: z.coerce.number().min(0.01, "Preço deve ser maior que zero"),
-  compare_price: z.coerce.number().min(0).nullable().optional(),
+  price_cents: z.coerce.number().int().min(1, "Preço em centavos deve ser maior que zero"),
+  cost_cents: z.coerce.number().int().min(0).default(0),
+  compare_price: z.coerce.number().int().min(0).nullable().optional(),
   category: z.string().min(1, "Categoria obrigatória").max(100),
-  module: z.string().default("geral"),
+  module: z.enum(["fitness", "moto", "geral"]).default("geral"),
   stock: z.coerce.number().int().min(0).default(0),
   // Peso e dimensões para cálculo de frete
   weight_kg: z.coerce.number().min(0.01).default(0.5),
   height_cm: z.coerce.number().int().min(1).default(10),
   width_cm: z.coerce.number().int().min(1).default(20),
   length_cm: z.coerce.number().int().min(1).default(30),
-  discount_start: z.coerce.number().int().min(0).max(100).default(0),
-  discount_pro: z.coerce.number().int().min(0).max(100).default(0),
-  discount_vip: z.coerce.number().int().min(0).max(100).default(0),
+});
+
+// ── Estetica Services ──
+export const createEsteticaServiceSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).nullable().optional(),
+  image_url: z.string().url().nullable().optional(),
+  category: z.enum(["lavagem", "polimento", "vitrificacao", "higienizacao", "cristalizacao", "outros"]),
+  duration_min: z.coerce.number().int().min(15).max(480).default(60),
+  price_cents: z.coerce.number().int().min(1, "Preço em centavos deve ser maior que zero"),
+  cost_cents: z.coerce.number().int().min(0).default(0),
+  compare_price: z.coerce.number().int().min(0).nullable().optional(),
+  includes: z.array(z.string()).default([]),
+  eligible_for_loyalty: z.coerce.boolean().default(true),
+  requires_paid_plan: z.coerce.boolean().default(false),
+  is_active: z.coerce.boolean().default(true),
+  sort_order: z.coerce.number().int().default(0),
 });
 
 // ── Consultation ──

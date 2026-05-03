@@ -18,9 +18,8 @@ interface Service {
   compare_price: number | null;
   is_active: boolean;
   eligible_for_loyalty: boolean;
-  discount_start: number;
-  discount_pro: number;
-  discount_vip: number;
+  cost_cents: number | null;
+  requires_paid_plan: boolean;
   includes: string[];
   description: string | null;
   image_url: string | null;

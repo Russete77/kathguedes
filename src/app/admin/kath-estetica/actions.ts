@@ -4,6 +4,10 @@ import { auth } from "@clerk/nextjs/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { notifyUser } from "@/lib/notifications";
+import { createEsteticaServiceSchema } from "@/lib/validations";
+import type { PlanTier } from "@/lib/supabase/types";
+import { getCashbackPct } from "@/lib/billing/plans";
+import { creditWalletCents } from "@/lib/billing/wallet";
 
 async function requireAdmin() {
   const { userId, sessionClaims } = await auth();
@@ -37,24 +41,28 @@ export async function createService(formData: FormData) {
     .map((s) => s.trim())
     .filter(Boolean) || [];
 
+  const raw: Record<string, unknown> = {};
+  formData.forEach((value, key) => {
+    if (key !== "includes") raw[key] = value === "" ? null : value;
+  });
+  raw.includes = includes;
+
+  const data = createEsteticaServiceSchema.parse(raw);
+
   const { error } = await supabase.from("estetica_services").insert({
-    title: formData.get("title") as string,
-    description: (formData.get("description") as string) || null,
-    image_url: (formData.get("image_url") as string) || null,
-    category: formData.get("category") as string,
-    duration_min: Number(formData.get("duration_min")),
-    price_cents: Math.round(Number(formData.get("price_reais")) * 100),
-    compare_price:
-      formData.get("compare_price_reais")
-        ? Math.round(Number(formData.get("compare_price_reais")) * 100)
-        : null,
-    discount_start: Number(formData.get("discount_start") || 0),
-    discount_pro: Number(formData.get("discount_pro") || 0),
-    discount_vip: Number(formData.get("discount_vip") || 0),
-    includes,
-    eligible_for_loyalty: formData.get("eligible_for_loyalty") === "on",
-    is_active: formData.get("is_active") === "on",
-    sort_order: Number(formData.get("sort_order") || 0),
+    title: data.title,
+    description: data.description || null,
+    image_url: data.image_url || null,
+    category: data.category,
+    duration_min: data.duration_min,
+    price_cents: data.price_cents,
+    cost_cents: data.cost_cents,
+    compare_price: data.compare_price ?? null,
+    includes: data.includes,
+    eligible_for_loyalty: data.eligible_for_loyalty,
+    requires_paid_plan: data.requires_paid_plan,
+    is_active: data.is_active,
+    sort_order: data.sort_order,
   });
 
   if (error) throw new Error(error.message);
@@ -70,26 +78,30 @@ export async function updateService(id: string, formData: FormData) {
     .map((s) => s.trim())
     .filter(Boolean) || [];
 
+  const raw: Record<string, unknown> = {};
+  formData.forEach((value, key) => {
+    if (key !== "includes") raw[key] = value === "" ? null : value;
+  });
+  raw.includes = includes;
+
+  const data = createEsteticaServiceSchema.parse(raw);
+
   const { error } = await supabase
     .from("estetica_services")
     .update({
-      title: formData.get("title") as string,
-      description: (formData.get("description") as string) || null,
-      image_url: (formData.get("image_url") as string) || null,
-      category: formData.get("category") as string,
-      duration_min: Number(formData.get("duration_min")),
-      price_cents: Math.round(Number(formData.get("price_reais")) * 100),
-      compare_price:
-        formData.get("compare_price_reais")
-          ? Math.round(Number(formData.get("compare_price_reais")) * 100)
-          : null,
-      discount_start: Number(formData.get("discount_start") || 0),
-      discount_pro: Number(formData.get("discount_pro") || 0),
-      discount_vip: Number(formData.get("discount_vip") || 0),
-      includes,
-      eligible_for_loyalty: formData.get("eligible_for_loyalty") === "on",
-      is_active: formData.get("is_active") === "on",
-      sort_order: Number(formData.get("sort_order") || 0),
+      title: data.title,
+      description: data.description || null,
+      image_url: data.image_url || null,
+      category: data.category,
+      duration_min: data.duration_min,
+      price_cents: data.price_cents,
+      cost_cents: data.cost_cents,
+      compare_price: data.compare_price ?? null,
+      includes: data.includes,
+      eligible_for_loyalty: data.eligible_for_loyalty,
+      requires_paid_plan: data.requires_paid_plan,
+      is_active: data.is_active,
+      sort_order: data.sort_order,
     })
     .eq("id", id);
 

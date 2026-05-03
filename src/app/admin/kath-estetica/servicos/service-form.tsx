@@ -14,10 +14,9 @@ interface ServiceRow {
   category?: string;
   duration_min?: number;
   price_cents?: number;
+  cost_cents?: number;
   compare_price?: number | null;
-  discount_start?: number;
-  discount_pro?: number;
-  discount_vip?: number;
+  requires_paid_plan?: boolean;
   includes?: string[];
   eligible_for_loyalty?: boolean;
   is_active?: boolean;
@@ -96,28 +95,35 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
 
         <div className="grid grid-cols-2 gap-3">
           <Field
-            label="Preço (R$)"
-            name="price_reais"
+            label="Preço (centavos)"
+            name="price_cents"
             type="number"
-            step="0.01"
-            defaultValue={initial?.price_cents ? (initial.price_cents / 100).toString() : ""}
+            min={1}
+            placeholder="15000"
+            defaultValue={initial?.price_cents ?? ""}
             required
           />
           <Field
-            label='Preço "de" (R$)'
-            name="compare_price_reais"
+            label='Preço "de" (centavos)'
+            name="compare_price"
             type="number"
-            step="0.01"
-            defaultValue={
-              initial?.compare_price ? (initial.compare_price / 100).toString() : ""
-            }
+            min={0}
+            placeholder="20000"
+            defaultValue={initial?.compare_price ?? ""}
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Desc. START (%)" name="discount_start" type="number" defaultValue={initial?.discount_start || 0} />
-          <Field label="Desc. PRO (%)" name="discount_pro" type="number" defaultValue={initial?.discount_pro || 0} />
-          <Field label="Desc. VIP (%)" name="discount_vip" type="number" defaultValue={initial?.discount_vip || 0} />
+        <Field
+          label="Custo do fornecedor (centavos) — CMV"
+          name="cost_cents"
+          type="number"
+          min={0}
+          defaultValue={initial?.cost_cents ?? 0}
+        />
+
+        <div className="rounded-md bg-bg-2 border border-gray-4 p-3 text-sm text-gray-2">
+          <strong className="text-gray-1">Descontos por plano:</strong> aplicados automaticamente
+          conforme a tabela <a href="/admin/plans" className="underline text-pink">Planos</a>.
         </div>
 
         <Field
@@ -149,6 +155,15 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
             Ativo
           </label>
         </div>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            name="requires_paid_plan"
+            defaultChecked={initial?.requires_paid_plan ?? false}
+            className="w-4 h-4 accent-pink"
+          />
+          <span className="text-sm text-white">Exige plano pago para agendar (lavagem detalhada, vitrificação, etc.)</span>
+        </label>
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="ghost" size="lg" onClick={() => setOpen(false)} className="flex-1">

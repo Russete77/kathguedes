@@ -588,8 +588,9 @@ export async function createProduct(formData: FormData) {
     title: data.title,
     description: data.description || null,
     image_url: data.image_url,
-    price_cents: Math.round(data.price * 100),
-    compare_price: data.compare_price ? Math.round(data.compare_price * 100) : null,
+    price_cents: data.price_cents,
+    cost_cents: data.cost_cents,
+    compare_price: data.compare_price ?? null,
     category: data.category,
     module: data.module,
     stock: data.stock,
@@ -597,9 +598,6 @@ export async function createProduct(formData: FormData) {
     height_cm: data.height_cm,
     width_cm: data.width_cm,
     length_cm: data.length_cm,
-    discount_start: data.discount_start,
-    discount_pro: data.discount_pro,
-    discount_vip: data.discount_vip,
     is_active: true,
   });
 
@@ -619,8 +617,9 @@ export async function updateProduct(id: string, formData: FormData) {
       title: data.title,
       description: data.description || null,
       image_url: data.image_url,
-      price_cents: Math.round(data.price * 100),
-      compare_price: data.compare_price ? Math.round(data.compare_price * 100) : null,
+      price_cents: data.price_cents,
+      cost_cents: data.cost_cents,
+      compare_price: data.compare_price ?? null,
       category: data.category,
       module: data.module,
       stock: data.stock,
@@ -628,9 +627,6 @@ export async function updateProduct(id: string, formData: FormData) {
       height_cm: data.height_cm,
       width_cm: data.width_cm,
       length_cm: data.length_cm,
-      discount_start: data.discount_start,
-      discount_pro: data.discount_pro,
-      discount_vip: data.discount_vip,
     })
     .eq("id", id);
 
