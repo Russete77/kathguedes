@@ -162,7 +162,7 @@ export async function createCoupon(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
-  notifyByPlan(data.required_plan as "free" | "start" | "pro" | "vip", {
+  notifyByPlan(data.required_plan as PlanTier, {
     title: "Novo cupom disponível!",
     body: `${data.code} — ${data.discount_pct || 0}% OFF · Só para assinantes`,
     icon: "Tag",

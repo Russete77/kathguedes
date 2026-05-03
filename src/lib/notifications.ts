@@ -1,5 +1,6 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { sendPushToUser, sendPushBroadcast } from "@/lib/push/webpush";
+import type { PlanTier } from "@/lib/supabase/types";
 
 /**
  * Sistema centralizado de notificações.
@@ -64,13 +65,14 @@ export async function notifyAll(params: NotifyParams) {
 
 /**
  * Notifica assinantes de um plano específico ou superior.
+ * Ordem: free < acesso < plano1 < plano2 < plano3 < atleta.
  */
 export async function notifyByPlan(
-  minPlan: "free" | "start" | "pro" | "vip",
+  minPlan: PlanTier,
   params: NotifyParams
 ) {
   const supabase = createAdminSupabaseClient();
-  const planOrder = ["free", "start", "pro", "vip"];
+  const planOrder: PlanTier[] = ["free", "acesso", "plano1", "plano2", "plano3", "atleta"];
   const minIdx = planOrder.indexOf(minPlan);
   const eligiblePlans = planOrder.slice(minIdx);
 
