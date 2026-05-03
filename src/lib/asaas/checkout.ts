@@ -4,7 +4,7 @@ import {
   getSubscriptionPayments,
   getPaymentPixQrCode,
 } from "./client";
-import { PLAN_PRICES, PLAN_DESCRIPTIONS } from "./config";
+import { getPlan } from "@/lib/billing/plans";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import type { PlanTier } from "@/lib/supabase/types";
 
@@ -41,6 +41,12 @@ export async function processCheckout(
   const { userId, fullName, email, plan, billingType } = params;
   const supabase = createAdminSupabaseClient();
 
+  // 0. Resolver plano (preço + descrição vêm da tabela `plans`, admin-editável)
+  const planRow = await getPlan(plan);
+  if (!planRow || !planRow.is_active || planRow.asaas_value <= 0) {
+    throw new Error(`[checkout] plano inválido ou gratuito: ${plan}`);
+  }
+
   // 1. Verificar se já tem customer no Asaas
   const { data: profile } = await supabase
     .from("profiles")
@@ -73,10 +79,10 @@ export async function processCheckout(
   const subscription = await createSubscription({
     customer: customerId,
     billingType,
-    value: PLAN_PRICES[plan],
+    value: planRow.asaas_value,
     nextDueDate,
     cycle: "MONTHLY",
-    description: PLAN_DESCRIPTIONS[plan],
+    description: planRow.asaas_description,
     externalReference: userId,
   });
 
