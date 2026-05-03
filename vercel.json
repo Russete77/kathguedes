@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/cron/wallet-expire", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/order-timeout", "schedule": "0 * * * *" }
+  ]
+}
