@@ -52,6 +52,7 @@ const appNav: NavItem[] = [
   { href: "/admin/chat", label: "Chat VIP", icon: MessageCircle },
   { href: "/admin/push", label: "Push", icon: Bell },
   { href: "/admin/financeiro", label: "Financeiro", icon: Banknote },
+  { href: "/admin/plans", label: "Planos", icon: Tag },
   { href: "/admin/team", label: "Equipe", icon: Users },
 ];
 
