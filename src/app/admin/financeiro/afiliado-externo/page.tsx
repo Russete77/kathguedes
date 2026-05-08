@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { PayoutForm } from "./payout-form";
-import { FinanceiroNav } from "../page";
+import { FinanceiroNav } from "../financeiro-nav";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Afiliados externos" };

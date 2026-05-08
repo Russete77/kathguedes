@@ -255,7 +255,7 @@ export type Database = {
           body: string
           created_at: string
           id: string
-          is_from_kath: boolean
+          sender_role: string
           is_read: boolean
           user_id: string
         }
@@ -263,7 +263,7 @@ export type Database = {
           body: string
           created_at?: string
           id?: string
-          is_from_kath?: boolean
+          sender_role?: string
           is_read?: boolean
           user_id?: string
         }
@@ -271,7 +271,7 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
-          is_from_kath?: boolean
+          sender_role?: string
           is_read?: boolean
           user_id?: string
         }
@@ -374,6 +374,7 @@ export type Database = {
       orders: {
         Row: {
           asaas_payment_id: string | null
+          cashback_used_cents: number
           created_at: string
           discount_cents: number
           estimated_delivery: string | null
@@ -397,6 +398,7 @@ export type Database = {
         }
         Insert: {
           asaas_payment_id?: string | null
+          cashback_used_cents?: number
           created_at?: string
           discount_cents?: number
           estimated_delivery?: string | null
@@ -420,6 +422,7 @@ export type Database = {
         }
         Update: {
           asaas_payment_id?: string | null
+          cashback_used_cents?: number
           created_at?: string
           discount_cents?: number
           estimated_delivery?: string | null
@@ -488,11 +491,9 @@ export type Database = {
         Row: {
           category: string
           compare_price: number | null
+          cost_cents: number
           created_at: string
           description: string | null
-          discount_pro: number
-          discount_start: number
-          discount_vip: number
           height_cm: number | null
           id: string
           image_url: string
@@ -510,11 +511,9 @@ export type Database = {
         Insert: {
           category: string
           compare_price?: number | null
+          cost_cents?: number
           created_at?: string
           description?: string | null
-          discount_pro?: number
-          discount_start?: number
-          discount_vip?: number
           height_cm?: number | null
           id?: string
           image_url: string
@@ -532,11 +531,9 @@ export type Database = {
         Update: {
           category?: string
           compare_price?: number | null
+          cost_cents?: number
           created_at?: string
           description?: string | null
-          discount_pro?: number
-          discount_start?: number
-          discount_vip?: number
           height_cm?: number | null
           id?: string
           image_url?: string
@@ -784,11 +781,9 @@ export type Database = {
         Row: {
           category: string
           compare_price: number | null
+          cost_cents: number
           created_at: string
           description: string | null
-          discount_pro: number
-          discount_start: number
-          discount_vip: number
           duration_min: number
           eligible_for_loyalty: boolean
           id: string
@@ -796,17 +791,16 @@ export type Database = {
           includes: string[]
           is_active: boolean
           price_cents: number
+          requires_paid_plan: boolean
           sort_order: number
           title: string
         }
         Insert: {
           category: string
           compare_price?: number | null
+          cost_cents?: number
           created_at?: string
           description?: string | null
-          discount_pro?: number
-          discount_start?: number
-          discount_vip?: number
           duration_min?: number
           eligible_for_loyalty?: boolean
           id?: string
@@ -814,17 +808,16 @@ export type Database = {
           includes?: string[]
           is_active?: boolean
           price_cents: number
+          requires_paid_plan?: boolean
           sort_order?: number
           title: string
         }
         Update: {
           category?: string
           compare_price?: number | null
+          cost_cents?: number
           created_at?: string
           description?: string | null
-          discount_pro?: number
-          discount_start?: number
-          discount_vip?: number
           duration_min?: number
           eligible_for_loyalty?: boolean
           id?: string
@@ -832,6 +825,7 @@ export type Database = {
           includes?: string[]
           is_active?: boolean
           price_cents?: number
+          requires_paid_plan?: boolean
           sort_order?: number
           title?: string
         }
@@ -891,6 +885,7 @@ export type Database = {
           created_at: string
           customer_name: string
           customer_phone: string
+          cashback_used_cents: number
           duration_min: number
           id: string
           loyalty_free: boolean
@@ -911,6 +906,7 @@ export type Database = {
         }
         Insert: {
           asaas_payment_id?: string | null
+          cashback_used_cents?: number
           created_at?: string
           customer_name: string
           customer_phone: string
@@ -934,6 +930,7 @@ export type Database = {
         }
         Update: {
           asaas_payment_id?: string | null
+          cashback_used_cents?: number
           created_at?: string
           customer_name?: string
           customer_phone?: string
@@ -1064,6 +1061,347 @@ export type Database = {
           }
         ]
       }
+      plans: {
+        Row: {
+          slug: string
+          name: string
+          level: number
+          price_cents: number
+          asaas_value: number
+          asaas_description: string
+          cashback_pct: number
+          store_discount_pct: number
+          estetica_discount_pct: number
+          features: Json
+          is_active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          slug: string
+          name: string
+          level: number
+          price_cents: number
+          asaas_value: number
+          asaas_description: string
+          cashback_pct?: number
+          store_discount_pct?: number
+          estetica_discount_pct?: number
+          features?: Json
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          slug?: string
+          name?: string
+          level?: number
+          price_cents?: number
+          asaas_value?: number
+          asaas_description?: string
+          cashback_pct?: number
+          store_discount_pct?: number
+          estetica_discount_pct?: number
+          features?: Json
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      team_members: {
+        Row: {
+          id: string
+          clerk_user_id: string | null
+          email: string
+          full_name: string
+          role: string
+          pix_key: string | null
+          bank_account: Json | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clerk_user_id?: string | null
+          email: string
+          full_name: string
+          role: string
+          pix_key?: string | null
+          bank_account?: Json | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clerk_user_id?: string | null
+          email?: string
+          full_name?: string
+          role?: string
+          pix_key?: string | null
+          bank_account?: Json | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      commission_rules: {
+        Row: {
+          id: string
+          team_member_id: string
+          applies_to_type: string | null
+          applies_to_category: string | null
+          pct: number
+          applies_from: string
+          applies_to: string | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          team_member_id: string
+          applies_to_type?: string | null
+          applies_to_category?: string | null
+          pct: number
+          applies_from?: string
+          applies_to?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          team_member_id?: string
+          applies_to_type?: string | null
+          applies_to_category?: string | null
+          pct?: number
+          applies_from?: string
+          applies_to?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_rules_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      commission_allocations: {
+        Row: {
+          id: string
+          revenue_stream_id: string
+          team_member_id: string
+          pct: number
+          amount_cents: number
+          status: string
+          paid_at: string | null
+          payout_reference: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          revenue_stream_id: string
+          team_member_id: string
+          pct: number
+          amount_cents: number
+          status?: string
+          paid_at?: string | null
+          payout_reference?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          revenue_stream_id?: string
+          team_member_id?: string
+          pct?: number
+          amount_cents?: number
+          status?: string
+          paid_at?: string | null
+          payout_reference?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_allocations_revenue_stream_id_fkey"
+            columns: ["revenue_stream_id"]
+            isOneToOne: false
+            referencedRelation: "revenue_streams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_allocations_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      revenue_streams: {
+        Row: {
+          id: string
+          type: string
+          category: string | null
+          user_id: string | null
+          reference_type: string
+          reference_id: string
+          asaas_payment_id: string | null
+          gross_cents: number
+          cost_cents: number
+          net_cents: number
+          cashback_used_cents: number
+          status: string
+          occurred_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          type: string
+          category?: string | null
+          user_id?: string | null
+          reference_type: string
+          reference_id: string
+          asaas_payment_id?: string | null
+          gross_cents: number
+          cost_cents?: number
+          cashback_used_cents?: number
+          status?: string
+          occurred_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          type?: string
+          category?: string | null
+          user_id?: string | null
+          reference_type?: string
+          reference_id?: string
+          asaas_payment_id?: string | null
+          gross_cents?: number
+          cost_cents?: number
+          cashback_used_cents?: number
+          status?: string
+          occurred_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_streams_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      wallet_credits: {
+        Row: {
+          id: string
+          user_id: string
+          source_revenue_stream_id: string | null
+          spent_on_revenue_stream_id: string | null
+          amount_cents: number
+          expires_at: string | null
+          used_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          source_revenue_stream_id?: string | null
+          spent_on_revenue_stream_id?: string | null
+          amount_cents: number
+          expires_at?: string | null
+          used_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          source_revenue_stream_id?: string | null
+          spent_on_revenue_stream_id?: string | null
+          amount_cents?: number
+          expires_at?: string | null
+          used_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_credits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      wallet_balance: {
+        Row: {
+          user_id: string
+          active_cents: number
+          earned_total_cents: number
+          spent_total_cents: number
+          expired_total_cents: number
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          active_cents?: number
+          earned_total_cents?: number
+          spent_total_cents?: number
+          expired_total_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          active_cents?: number
+          earned_total_cents?: number
+          spent_total_cents?: number
+          expired_total_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_balance_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      monthly_usage: {
+        Row: {
+          user_id: string
+          year_month: string
+          affiliate_clicks_count: number
+        }
+        Insert: {
+          user_id: string
+          year_month: string
+          affiliate_clicks_count?: number
+        }
+        Update: {
+          user_id?: string
+          year_month?: string
+          affiliate_clicks_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1072,6 +1410,47 @@ export type Database = {
       check_loyalty_eligibility: {
         Args: { p_user_id: string }
         Returns: boolean
+      }
+      compute_cashback_cents: {
+        Args: { p_user_id: string; p_amount_paid_cash_cents: number }
+        Returns: number
+      }
+      compute_commissions: {
+        Args: { p_revenue_stream_id: string }
+        Returns: number
+      }
+      credit_wallet_cents: {
+        Args: {
+          p_user_id: string
+          p_amount_cents: number
+          p_source_stream_id: string
+          p_validity_days?: number
+        }
+        Returns: undefined
+      }
+      decrement_stock_batch: {
+        Args: { p_items: Json }
+        Returns: undefined
+      }
+      expire_wallet_credits: {
+        Args: Record<string, never>
+        Returns: number
+      }
+      increment_stock_batch: {
+        Args: { p_items: Json }
+        Returns: undefined
+      }
+      spend_wallet_cents: {
+        Args: {
+          p_user_id: string
+          p_amount_cents: number
+          p_revenue_stream_id?: string | null
+        }
+        Returns: number
+      }
+      wallet_active_cents: {
+        Args: { p_user_id: string }
+        Returns: number
       }
       decrement_stock: {
         Args: { p_product_id: string; p_quantity: number }

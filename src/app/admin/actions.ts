@@ -483,7 +483,7 @@ export async function updateConsultationPlan(
 
   const { error } = await supabase
     .from("consultations")
-    .update(data as unknown as any)
+    .update(data as Record<string, unknown>)
     .eq("id", id);
 
   if (error) throw new Error(error.message);

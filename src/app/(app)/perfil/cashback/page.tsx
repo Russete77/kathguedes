@@ -21,7 +21,7 @@ export default async function CashbackPage() {
   if (!userId) redirect("/login");
 
   const balance = await getWalletBalance(userId);
-  const credits = (await listWalletCreditsForUser(userId)) as Credit[];
+  const credits = (await listWalletCreditsForUser(userId)) as unknown as Credit[];
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">

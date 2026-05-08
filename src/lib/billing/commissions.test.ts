@@ -37,9 +37,9 @@ describe("listAllocations", () => {
     const order = vi.fn().mockResolvedValue({ data: returnData, error: null });
     const lte = vi.fn().mockReturnValue({ order });
     const gte = vi.fn().mockReturnValue({ lte, order });
-    // Use let so eq2 can reference itself (self-referential mock chain)
-    let eq2: ReturnType<typeof vi.fn>;
-    eq2 = vi.fn().mockReturnValue({ gte, lte, order, eq: (...a: unknown[]) => eq2(...a) });
+    const eq2: ReturnType<typeof vi.fn> = vi
+      .fn()
+      .mockReturnValue({ gte, lte, order, eq: (...a: unknown[]) => eq2(...a) });
     const eq1 = vi.fn().mockReturnValue({ eq: eq2, gte, lte, order });
     const select = vi.fn().mockReturnValue({ eq: eq1, gte, lte, order });
     mockFrom.mockReturnValue({ select });

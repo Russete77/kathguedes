@@ -2,13 +2,16 @@ import { getProducts, getOrders } from "../actions";
 import { ProductList } from "./product-list";
 import { OrderList } from "./order-list";
 import { ProductForm } from "./product-form";
+import type { ComponentProps } from "react";
+
+type OrderListOrders = ComponentProps<typeof OrderList>["orders"];
 
 export const metadata = { title: "Loja" };
 
 export default async function AdminLojaPage() {
   const [products, ordersData] = await Promise.all([getProducts(), getOrders()]);
 
-  const orders = (ordersData || []) as unknown as any[];
+  const orders = (ordersData || []) as unknown as OrderListOrders;
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">

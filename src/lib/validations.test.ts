@@ -140,7 +140,7 @@ describe("createProductSchema", () => {
     const result = createProductSchema.safeParse({
       title: "Camiseta KathApp",
       image_url: "https://example.com/img.jpg",
-      price: 49.90,
+      price_cents: 4990,
       category: "camiseta",
     });
     expect(result.success).toBe(true);
@@ -150,7 +150,7 @@ describe("createProductSchema", () => {
     const result = createProductSchema.safeParse({
       title: "Test",
       image_url: "https://example.com/img.jpg",
-      price: 0,
+      price_cents: 0,
       category: "test",
     });
     expect(result.success).toBe(false);

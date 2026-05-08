@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { listAllocations, pendingPayoutsByMember } from "@/lib/billing/commissions";
 import { CommissionList } from "./commission-list";
-import { FinanceiroNav } from "../page";
+import { FinanceiroNav } from "../financeiro-nav";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Comissões" };

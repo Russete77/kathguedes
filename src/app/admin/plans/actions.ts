@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { _resetPlanCache } from "@/lib/billing/plans";
+import type { Json } from "@/lib/supabase/database.types";
 
 const planUpdateSchema = z.object({
   slug: z.enum(["free", "acesso", "plano1", "plano2", "plano3", "atleta"]),
@@ -38,7 +39,7 @@ export async function updatePlan(formData: FormData): Promise<void> {
     throw new Error("invalid_input: " + parsed.error.flatten().formErrors.join(", "));
   }
 
-  const features = JSON.parse(parsed.data.features_json) as Record<string, unknown>;
+  const features = JSON.parse(parsed.data.features_json) as Json;
 
   const supabase = createAdminSupabaseClient();
   const { error } = await supabase

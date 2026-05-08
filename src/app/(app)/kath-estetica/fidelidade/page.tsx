@@ -97,7 +97,7 @@ export default async function FidelidadePage() {
               🎉 5ª LAVAGEM DESBLOQUEADA!
             </div>
             <p className="text-gray-2 text-sm mb-3">
-              No próximo agendamento deste mês, marque a opção "Usar benefício fidelidade" e pague R$0.
+              No próximo agendamento deste mês, marque a opção &quot;Usar benefício fidelidade&quot; e pague R$0.
             </p>
             <Link
               href="/kath-estetica/servicos"
@@ -128,7 +128,7 @@ export default async function FidelidadePage() {
           </li>
           <li className="flex gap-3">
             <span className="font-display text-pink text-xl leading-none">2.</span>
-            Em "Meus Agendamentos", envie uma foto da sua moto lavada.
+            Em &quot;Meus Agendamentos&quot;, envie uma foto da sua moto lavada.
           </li>
           <li className="flex gap-3">
             <span className="font-display text-pink text-xl leading-none">3.</span>

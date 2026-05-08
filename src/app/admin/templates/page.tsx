@@ -2,6 +2,9 @@ import { getTemplates } from "../actions";
 import { TemplateList } from "./template-list";
 import { TemplateEditor } from "./template-editor";
 import { SeedButton } from "./seed-button";
+import type { ComponentProps } from "react";
+
+type TemplateListTemplates = ComponentProps<typeof TemplateList>["templates"];
 
 export const metadata = { title: "Templates" };
 
@@ -11,8 +14,8 @@ export default async function AdminTemplatesPage() {
     getTemplates("diet"),
   ]);
 
-  const workoutTemplates = (workoutTemplatesData || []) as unknown as any[];
-  const dietTemplates = (dietTemplatesData || []) as unknown as any[];
+  const workoutTemplates = (workoutTemplatesData || []) as unknown as TemplateListTemplates;
+  const dietTemplates = (dietTemplatesData || []) as unknown as TemplateListTemplates;
 
   const isEmpty = workoutTemplates.length === 0 && dietTemplates.length === 0;
 

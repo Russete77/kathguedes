@@ -38,7 +38,10 @@ function formatBRDate(dateString: string): string {
 }
 
 function getStatusInfo(status: string) {
-  const statusMap: Record<string, { label: string; variant: any; color: string }> = {
+  const statusMap: Record<
+    string,
+    { label: string; variant: "yellow" | "pink" | "green" | "dark" | "white"; color: string }
+  > = {
     pending: { label: "Pendente", variant: "yellow", color: "text-yellow" },
     paid: { label: "Pago", variant: "pink", color: "text-pink" },
     shipped: { label: "Enviado", variant: "green", color: "text-success" },
