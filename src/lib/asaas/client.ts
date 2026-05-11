@@ -3,32 +3,75 @@ import { ASAAS_CONFIG } from "./config";
 /**
  * Asaas API client — server-only.
  * Docs: https://docs.asaas.com/docs/visao-geral
+ *
+ * Retry/backoff: tentamos até 3 vezes em 5xx e network errors.
+ * 4xx (incluindo 422 de validação) NÃO retentam — o erro veio do client,
+ * retry só piora.
  */
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
+const MAX_ATTEMPTS = 3;
+const BASE_BACKOFF_MS = 250;
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 async function asaasRequest<T>(
   endpoint: string,
   method: HttpMethod = "GET",
-  body?: object
+  body?: object,
 ): Promise<T> {
-  const res = await fetch(`${ASAAS_CONFIG.baseUrl}${endpoint}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      access_token: ASAAS_CONFIG.apiKey,
-    },
-    ...(body && { body: JSON.stringify(body) }),
-  });
+  let lastError: unknown = null;
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(
-      `Asaas API error ${res.status}: ${JSON.stringify(error)}`
-    );
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`${ASAAS_CONFIG.baseUrl}${endpoint}`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          access_token: ASAAS_CONFIG.apiKey,
+        },
+        ...(body && { body: JSON.stringify(body) }),
+      });
+    } catch (networkErr) {
+      // Network error / timeout — retentar
+      lastError = networkErr;
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(BASE_BACKOFF_MS * 2 ** (attempt - 1));
+        continue;
+      }
+      throw new Error(
+        `Asaas network error after ${MAX_ATTEMPTS} attempts: ${
+          networkErr instanceof Error ? networkErr.message : String(networkErr)
+        }`,
+      );
+    }
+
+    if (res.ok) {
+      return res.json() as Promise<T>;
+    }
+
+    // 4xx — não retentar
+    if (res.status >= 400 && res.status < 500) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Asaas API error ${res.status}: ${JSON.stringify(err)}`);
+    }
+
+    // 5xx — backoff e retentar (se ainda tem tentativa)
+    const errBody = await res.json().catch(() => ({}));
+    lastError = new Error(`Asaas API error ${res.status}: ${JSON.stringify(errBody)}`);
+    if (attempt < MAX_ATTEMPTS) {
+      await sleep(BASE_BACKOFF_MS * 2 ** (attempt - 1));
+      continue;
+    }
+    throw lastError;
   }
 
-  return res.json();
+  // Defensiva — não deveria chegar aqui
+  throw lastError ?? new Error("Asaas request failed unexpectedly");
 }
 
 // ── Customers ──

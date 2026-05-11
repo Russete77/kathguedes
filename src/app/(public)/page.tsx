@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getActivePlans, type Plan, type PlanFeatures } from "@/lib/billing/plans";
 import {
   PlayCircle,
   Target,
@@ -74,116 +75,110 @@ export const metadata: Metadata = {
   },
 };
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Organization",
-      "@id": "https://kathapp.com.br/#organization",
-      name: "KathApp",
-      url: "https://kathapp.com.br",
-      logo: { "@type": "ImageObject", url: "https://kathapp.com.br/icons/icon-512.png", width: 512, height: 512 },
-      description: "App fitness da Kath Guedes com treinos em vídeo, consultoria personalizada de treino e dieta, loja de suplementos e cupons exclusivos.",
-      sameAs: ["https://www.instagram.com/kathguedes", "https://www.youtube.com/@kathguedes", "https://www.tiktok.com/@kathguedes"],
-    },
-    {
-      "@type": "WebSite",
-      "@id": "https://kathapp.com.br/#website",
-      url: "https://kathapp.com.br",
-      name: "KathApp",
-      publisher: { "@id": "https://kathapp.com.br/#organization" },
-      inLanguage: "pt-BR",
-    },
-    {
-      "@type": "SoftwareApplication",
-      "@id": "https://kathapp.com.br/#app",
-      name: "KathApp",
-      operatingSystem: "Web",
-      applicationCategory: "HealthApplication",
-      offers: [
-        { "@type": "Offer", price: "0", priceCurrency: "BRL", name: "Free", description: "5 treinos liberados, afiliados básicos, acesso à loja" },
-        { "@type": "Offer", price: "19.00", priceCurrency: "BRL", name: "Start", description: "Biblioteca completa, treinos semanais, cupons de parceiros" },
-        { "@type": "Offer", price: "39.00", priceCurrency: "BRL", name: "Pro", description: "Tudo do Start + cupons early access, check-in semanal, comunidade" },
-        { "@type": "Offer", price: "99.00", priceCurrency: "BRL", name: "VIP", description: "Consultoria completa com treino e dieta personalizados, chat direto com a Kath" },
-      ],
-      author: { "@id": "https://kathapp.com.br/#organization" },
-      description: "App de fitness com treinos em vídeo, consultoria personalizada de treino e dieta, loja de suplementos e cupons exclusivos.",
-    },
-    {
-      "@type": "FAQPage",
-      mainEntity: [
-        { "@type": "Question", name: "O KathApp é gratuito?", acceptedAnswer: { "@type": "Answer", text: "Sim! O KathApp oferece um plano Free com 5 treinos liberados, acesso a afiliados básicos e a loja. Você pode fazer upgrade para os planos Start (R$19/mês), Pro (R$39/mês) ou VIP (R$99/mês) quando quiser." } },
-        { "@type": "Question", name: "O que inclui a consultoria VIP?", acceptedAnswer: { "@type": "Answer", text: "A consultoria VIP inclui plano de treino e dieta personalizados montados pela Kath, chat direto com ela, lives exclusivas e 20% de desconto na loja. Tudo acessível diretamente pelo app." } },
-        { "@type": "Question", name: "Quais tipos de treino estão disponíveis?", acceptedAnswer: { "@type": "Answer", text: "O KathApp tem uma biblioteca completa de treinos em vídeo gravados pela Kath, incluindo treinos de glúteos, pernas, membros superiores, HIIT e corpo todo. Novos treinos são adicionados toda semana para assinantes." } },
-      ],
-    },
-  ],
-};
+// Re-fetch a cada request — preço/planos podem mudar via admin.
+export const dynamic = "force-dynamic";
 
-export default function Home() {
+function buildJsonLd(plans: Plan[]) {
+  const paid = plans.filter((p) => p.is_active && p.asaas_value > 0);
+  const planOffers = plans
+    .filter((p) => p.is_active)
+    .map((p) => ({
+      "@type": "Offer",
+      price: (p.price_cents / 100).toFixed(2),
+      priceCurrency: "BRL",
+      name: p.name,
+      description: p.asaas_description || `Plano ${p.name}`,
+    }));
+
+  const planSummary = paid
+    .map((p) => `${p.name} (${(p.price_cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}/mês)`)
+    .join(", ");
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://kathapp.com.br/#organization",
+        name: "KathApp",
+        url: "https://kathapp.com.br",
+        logo: { "@type": "ImageObject", url: "https://kathapp.com.br/icons/icon-512.png", width: 512, height: 512 },
+        description:
+          "App fitness da Kath Guedes com treinos em vídeo, consultoria personalizada de treino e dieta, loja de suplementos e cupons exclusivos.",
+        sameAs: ["https://www.instagram.com/kathguedes", "https://www.youtube.com/@kathguedes", "https://www.tiktok.com/@kathguedes"],
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://kathapp.com.br/#website",
+        url: "https://kathapp.com.br",
+        name: "KathApp",
+        publisher: { "@id": "https://kathapp.com.br/#organization" },
+        inLanguage: "pt-BR",
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://kathapp.com.br/#app",
+        name: "KathApp",
+        operatingSystem: "Web",
+        applicationCategory: "HealthApplication",
+        offers: planOffers,
+        author: { "@id": "https://kathapp.com.br/#organization" },
+        description:
+          "App de fitness com treinos em vídeo, consultoria personalizada de treino e dieta, loja de suplementos e cupons exclusivos.",
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: [
+          {
+            "@type": "Question",
+            name: "O KathApp é gratuito?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: `Sim! O plano Free oferece treinos preview gratuitos. Para acesso completo, escolha entre: ${planSummary || "planos pagos disponíveis no app"}.`,
+            },
+          },
+          {
+            "@type": "Question",
+            name: "O que inclui a consultoria personalizada?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Os planos com consultoria incluem plano de treino e dieta personalizados montados pela Kath, dentro do próprio app. Tudo renderizado nativamente — sem PDFs.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Quais tipos de treino estão disponíveis?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "O KathApp tem uma biblioteca completa de treinos em vídeo gravados pela Kath: glúteos, pernas, membros superiores, HIIT e corpo todo. Novos treinos são adicionados toda semana para assinantes.",
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export default async function Home() {
+  const plans = await getActivePlans();
+  const jsonLd = buildJsonLd(plans);
+
   return (
     <LandingShell>
       {/* JSON-LD */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      {/* ══════════════════════════════════════════════
-          NAV — Glassmorphism + minimal
-         ══════════════════════════════════════════════ */}
       <NavBar />
-
-      {/* ══════════════════════════════════════════════
-          HERO — Full-screen immersive with 3D text
-         ══════════════════════════════════════════════ */}
       <HeroSection />
-
-      {/* ══════════════════════════════════════════════
-          MARQUEE — Infinite scrolling text
-         ══════════════════════════════════════════════ */}
       <MarqueeSection />
-
-      {/* ══════════════════════════════════════════════
-          SOCIAL PROOF — Numbers with animated counters
-         ══════════════════════════════════════════════ */}
       <SocialProofSection />
-
-      {/* ══════════════════════════════════════════════
-          HOW IT WORKS — 3 steps
-         ══════════════════════════════════════════════ */}
       <HowItWorksSection />
-
-      {/* ══════════════════════════════════════════════
-          FEATURES — Horizontal scroll cards
-         ══════════════════════════════════════════════ */}
       <FeaturesSection />
-
-      {/* ══════════════════════════════════════════════
-          TESTIMONIALS — Social proof
-         ══════════════════════════════════════════════ */}
       <TestimonialsSection />
-
-      {/* ══════════════════════════════════════════════
-          PRICING — Redesigned with tilt
-         ══════════════════════════════════════════════ */}
-      <PricingSection />
-
-      {/* ══════════════════════════════════════════════
-          KATH ESTÉTICA — Estética moto
-         ══════════════════════════════════════════════ */}
+      <PricingSection plans={plans} />
       <KathEsteticaSection />
-
-      {/* ══════════════════════════════════════════════
-          CTA FINAL — Personal touch
-         ══════════════════════════════════════════════ */}
       <CtaSection />
-
-      {/* ══════════════════════════════════════════════
-          FAQ
-         ══════════════════════════════════════════════ */}
       <FaqSection />
-
-      {/* ══════════════════════════════════════════════
-          FOOTER
-         ══════════════════════════════════════════════ */}
       <FooterSection />
     </LandingShell>
   );
@@ -449,21 +444,25 @@ function TestimonialsSection() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          <TestimonialCard name="Camila S." text="3 meses de VIP e meu shape mudou completamente. A Kath não passa treino genérico — ela monta pro SEU corpo." rating={5} plan="VIP" />
-          <TestimonialCard name="Juliana M." text="Os vídeos são incríveis, dá pra treinar em casa ou na academia. E os cupons já me economizaram mais que a assinatura!" rating={5} plan="PRO" />
-          <TestimonialCard name="Fernanda R." text="Comecei no free duvidando. Em 2 semanas já fiz upgrade pro Start. A qualidade dos treinos é de outro nível." rating={5} plan="START" />
+          <TestimonialCard name="Camila S." text="3 meses de consultoria personalizada e meu shape mudou completamente. A Kath não passa treino genérico — ela monta pro SEU corpo." rating={5} plan="ATLETA" />
+          <TestimonialCard name="Juliana M." text="Os vídeos são incríveis, dá pra treinar em casa ou na academia. E os cupons já me economizaram mais que a assinatura!" rating={5} plan="PLANO 2" />
+          <TestimonialCard name="Fernanda R." text="Comecei no free duvidando. Em 2 semanas já fiz upgrade. A qualidade dos treinos é de outro nível." rating={5} plan="ACESSO" />
         </div>
       </div>
     </section>
   );
 }
 
-function PricingSection() {
+function PricingSection({ plans }: { plans: Plan[] }) {
+  // Plano destacado: maior price antes do "atleta" (ou último não-atleta)
+  const sortedPlans = [...plans].sort((a, b) => a.level - b.level);
+  const lastPaid = [...sortedPlans].reverse().find((p) => p.asaas_value > 0);
+
   return (
     <section className="py-28 px-6 relative">
       <div className="neon-spot neon-spot-purple w-[500px] h-[500px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-8" style={{ animation: "neon-drift 20s ease-in-out infinite" }} />
 
-      <div className="max-w-5xl mx-auto relative z-10">
+      <div className="max-w-7xl mx-auto relative z-10">
         <div className="text-center mb-16">
           <p className="font-mono text-[11px] text-pink tracking-[0.2em] uppercase mb-4">Sem pegadinha</p>
           <h2 className="font-display text-4xl sm:text-6xl lg:text-7xl text-white mb-4">
@@ -472,42 +471,129 @@ function PricingSection() {
           <p className="text-gray-2 max-w-md mx-auto">Começa grátis. Faz upgrade quando cansar de ficar no básico.</p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <PlanCard name="FREE" price={0} period="para sempre" features={[
-            { text: "5 treinos liberados", included: true },
-            { text: "Afiliados básicos", included: true },
-            { text: "Loja (ver preços)", included: true },
-            { text: "Treinos novos", included: false },
-            { text: "Cupons", included: false },
-            { text: "Consultoria", included: false },
-          ]} />
-          <PlanCard name="START" price={19} period="por mês" features={[
-            { text: "Biblioteca completa", included: true },
-            { text: "Treinos toda semana", included: true },
-            { text: "Cupons de parceiros", included: true },
-            { text: "5% desconto na loja", included: true },
-            { text: "Consultoria", included: false },
-            { text: "Chat com a Kath", included: false },
-          ]} />
-          <PlanCard name="PRO" price={39} period="por mês" featured features={[
-            { text: "Tudo do START", included: true },
-            { text: "Cupons early access", included: true },
-            { text: "Check-in semanal", included: true },
-            { text: "Comunidade exclusiva", included: true },
-            { text: "10% desconto na loja", included: true },
-            { text: "Chat com a Kath", included: false },
-          ]} />
-          <PlanCard name="VIP" price={99} period="por mês" isVip features={[
-            { text: "Tudo do PRO", included: true },
-            { text: "Consultoria completa", included: true },
-            { text: "Treino + dieta pessoal", included: true },
-            { text: "Chat direto com Kath", included: true },
-            { text: "Lives exclusivas", included: true },
-            { text: "20% desconto na loja", included: true },
-          ]} />
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {sortedPlans.map((plan) => (
+            <PlanCardLanding
+              key={plan.slug}
+              plan={plan}
+              featured={plan.slug === "plano3"}
+              premium={plan.slug === lastPaid?.slug && lastPaid.slug !== "plano3"}
+            />
+          ))}
         </div>
       </div>
     </section>
+  );
+}
+
+function planFeaturesToList(plan: Plan): { text: string; included: boolean }[] {
+  const f: PlanFeatures = plan.features ?? {};
+  const items: { text: string; included: boolean }[] = [];
+
+  if (f.workouts) {
+    items.push({ included: true, text: "Biblioteca completa de treinos" });
+  } else if (typeof f.workouts_preview === "number" && f.workouts_preview > 0) {
+    items.push({ included: true, text: `${f.workouts_preview} treinos preview` });
+  } else {
+    items.push({ included: false, text: "Treinos completos" });
+  }
+
+  items.push({ included: !!f.diet, text: "Plano de dieta personalizado" });
+  items.push({ included: !!f.supplements, text: "Acompanhamento de suplementos" });
+
+  if (typeof f.chat_sla_h === "number") {
+    items.push({ included: true, text: `Chat com a Kath (SLA ${f.chat_sla_h}h)` });
+  } else {
+    items.push({ included: false, text: "Chat com a Kath" });
+  }
+
+  if (typeof f.video_call_per_month === "number" && f.video_call_per_month > 0) {
+    items.push({ included: true, text: `${f.video_call_per_month}x vídeo 1-1/mês` });
+  }
+
+  if (f.affiliate_clicks_per_month === "unlimited") {
+    items.push({ included: true, text: "Cupons + afiliados ilimitados" });
+  } else if (typeof f.affiliate_clicks_per_month === "number") {
+    items.push({ included: true, text: `${f.affiliate_clicks_per_month} cupons/mês` });
+  }
+
+  if (f.estetica_book_all) {
+    items.push({ included: true, text: "Agenda estética liberada" });
+  }
+
+  if (plan.cashback_pct > 0) {
+    items.push({ included: true, text: `Cashback ${plan.cashback_pct}%` });
+  }
+  if (plan.store_discount_pct > 0) {
+    items.push({ included: true, text: `${plan.store_discount_pct}% off loja` });
+  }
+
+  return items;
+}
+
+function PlanCardLanding({
+  plan,
+  featured = false,
+  premium = false,
+}: {
+  plan: Plan;
+  featured?: boolean;
+  premium?: boolean;
+}) {
+  const items = planFeaturesToList(plan);
+  const isFree = plan.price_cents === 0;
+  const priceLabel = isFree
+    ? "FREE"
+    : `R$${(plan.price_cents / 100).toFixed(2).replace(".", ",")}`;
+  const periodLabel = isFree ? "para sempre" : "/mês";
+
+  return (
+    <div
+      className={`bg-bg-1 border rounded-[22px] p-6 relative overflow-hidden transition-all duration-500 hover:-translate-y-2 group flex flex-col ${
+        featured
+          ? "border-pink bg-gradient-to-b from-[#1A0010] to-bg-1 shadow-[0_0_60px_rgba(255,0,128,0.1)]"
+          : premium
+            ? "border-pink/40 bg-gradient-to-b from-[#120008] to-bg-1"
+            : "border-gray-4 hover:border-gray-3"
+      }`}
+    >
+      {featured && (
+        <div className="absolute top-4 right-[-28px] bg-pink text-white text-[9px] font-bold tracking-[0.12em] px-9 py-1 rotate-45">
+          POPULAR
+        </div>
+      )}
+      {premium && !featured && <Crown size={16} className="absolute top-5 right-5 text-pink/60" />}
+
+      <div className="font-mono text-[11px] text-gray-3 tracking-[0.1em] uppercase mb-2.5">{plan.name}</div>
+      <div className="font-display text-[36px] sm:text-[44px] leading-none text-white group-hover:text-gradient-pink transition-colors duration-300">
+        {priceLabel}
+      </div>
+      <div className="text-[12px] text-gray-3 mb-5">{periodLabel}</div>
+
+      <div className="flex flex-col gap-2 mb-5 flex-1">
+        {items.map((it, i) => (
+          <div
+            key={i}
+            className={`flex items-start gap-2 text-[12.5px] ${it.included ? "text-gray-1" : "text-gray-3/50"}`}
+          >
+            <span className={`mt-0.5 ${it.included ? "text-pink" : "text-gray-4"}`}>
+              {it.included ? <Check size={14} /> : <span className="inline-block w-[14px] text-center">-</span>}
+            </span>
+            <span>{it.text}</span>
+          </div>
+        ))}
+      </div>
+
+      <Link href="/registro" className="block">
+        <Button
+          variant={featured ? "primary" : isFree ? "ghost" : premium ? "primary" : "secondary"}
+          className="w-full"
+          size="sm"
+        >
+          {isFree ? "Começar Grátis" : premium ? "Quero esse plano" : "Assinar"}
+        </Button>
+      </Link>
+    </div>
   );
 }
 
@@ -663,8 +749,8 @@ function FaqSection() {
       <div className="max-w-3xl mx-auto">
         <h2 className="font-display text-3xl sm:text-5xl text-white text-center mb-14">PERGUNTAS FREQUENTES</h2>
         <div className="space-y-4">
-          <FaqItem question="É grátis mesmo?" answer="Sim. 5 treinos liberados, loja e afiliados. Sem cartão, sem pegadinha. Se gostar (e vai gostar), faz upgrade quando quiser." />
-          <FaqItem question="O que tem na consultoria VIP?" answer="Eu monto seu treino e sua dieta. Personalizados. Você fala comigo direto pelo chat, tem lives exclusivas e 20% de desconto na loja. Tudo dentro do app." />
+          <FaqItem question="É grátis mesmo?" answer="Sim. Treinos preview liberados, loja e afiliados básicos. Sem cartão, sem pegadinha. Se gostar (e vai gostar), faz upgrade quando quiser." />
+          <FaqItem question="O que tem nos planos com consultoria?" answer="Eu monto seu treino e sua dieta personalizados. Você fala comigo direto pelo chat, tem reavaliações periódicas e descontos na loja e na estética. Tudo dentro do app, nada de PDF." />
           <FaqItem question="Que tipo de treino tem?" answer="Glúteos, pernas, superiores, HIIT, corpo todo. Tudo em vídeo HD, gravado por mim. Novos treinos toda semana pra quem assina." />
           <FaqItem question="E se eu quiser cancelar?" answer="Cancela pelo app, na hora, sem ninguém te perguntando por quê. Sem multa, sem burocracia. Mas duvido que você vai querer." />
         </div>
@@ -769,45 +855,6 @@ function TestimonialCard({ name, text, rating, plan }: { name: string; text: str
         <span className="text-[13px] text-white font-medium">{name}</span>
         <Badge variant="pink" className="text-[9px]">{plan}</Badge>
       </div>
-    </div>
-  );
-}
-
-function PlanCard({ name, price, period, features, featured = false, isVip = false }: {
-  name: string; price: number; period: string; features: { text: string; included: boolean }[]; featured?: boolean; isVip?: boolean;
-}) {
-  return (
-    <div className={`bg-bg-1 border rounded-[22px] p-7 relative overflow-hidden transition-all duration-500 hover:-translate-y-2 group ${
-      featured
-        ? "border-pink bg-gradient-to-b from-[#1A0010] to-bg-1 shadow-[0_0_60px_rgba(255,0,128,0.1)]"
-        : isVip
-          ? "border-pink/40 bg-gradient-to-b from-[#120008] to-bg-1"
-          : "border-gray-4 hover:border-gray-3"
-    }`}>
-      {featured && (
-        <div className="absolute top-4 right-[-28px] bg-pink text-white text-[9px] font-bold tracking-[0.12em] px-9 py-1 rotate-45">POPULAR</div>
-      )}
-      {isVip && <Crown size={16} className="absolute top-5 right-5 text-pink/60" />}
-      <div className="font-mono text-[11px] text-gray-3 tracking-[0.1em] uppercase mb-2.5">{name}</div>
-      <div className="font-display text-[52px] leading-none text-white group-hover:text-gradient-pink transition-colors duration-300">
-        {price === 0 ? "FREE" : `R$${price}`}
-      </div>
-      <div className="text-[13px] text-gray-3 mb-6">{period}</div>
-      <div className="flex flex-col gap-2.5 mb-6">
-        {features.map((feat, i) => (
-          <div key={i} className={`flex items-start gap-2 text-[13px] ${feat.included ? "text-gray-1" : "text-gray-3/50"}`}>
-            <span className={`mt-0.5 ${feat.included ? "text-pink" : "text-gray-4"}`}>
-              {feat.included ? <Check size={14} /> : <span className="inline-block w-[14px] text-center">-</span>}
-            </span>
-            {feat.text}
-          </div>
-        ))}
-      </div>
-      <Link href="/registro" className="block">
-        <Button variant={featured ? "primary" : name === "FREE" ? "ghost" : isVip ? "primary" : "secondary"} className="w-full" size="sm">
-          {price === 0 ? "Começar Grátis" : isVip ? "Quero VIP" : "Assinar"}
-        </Button>
-      </Link>
     </div>
   );
 }

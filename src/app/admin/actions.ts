@@ -14,17 +14,17 @@ import {
   parseFormData,
 } from "@/lib/validations";
 import { creditWalletCents } from "@/lib/billing/wallet";
-import { getCashbackPct } from "@/lib/billing/plans";
+import { getCashbackPct, getActivePlans } from "@/lib/billing/plans";
+import { requireAdmin as requireAdminBase } from "@/lib/auth-helpers";
 import type { PlanTier } from "@/lib/supabase/types";
 
 // ── Auth helper ──
-
-async function requireAdmin() {
-  const { userId, sessionClaims } = await auth();
+// Wrapper que delega ao helper centralizado e retorna userId.
+// Mantém a assinatura `requireAdmin(): Promise<string>` que o resto do arquivo já usa.
+async function requireAdmin(): Promise<string> {
+  await requireAdminBase();
+  const { userId } = await auth();
   if (!userId) throw new Error("Não autenticado");
-  // Verificar admin via publicMetadata nos sessionClaims
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== "admin") throw new Error("Acesso negado: apenas admin");
   return userId;
 }
 
@@ -315,25 +315,46 @@ export async function toggleAffiliateActive(id: string, active: boolean) {
 // DASHBOARD METRICS
 // ══════════════════════════════════════════
 
+export type PlanCount = {
+  slug: PlanTier;
+  name: string;
+  level: number;
+  count: number;
+  is_paid: boolean;
+};
+
 export async function getDashboardMetrics() {
   await requireAdmin();
   const supabase = createAdminSupabaseClient();
 
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
+  // Planos ativos (lookup dinâmico — fonte de verdade: tabela `plans`)
+  const activePlans = await getActivePlans();
+
+  const planCountQueries = activePlans.map(p =>
+    supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("plan_tier", p.slug)
+      .then(res => ({ slug: p.slug, name: p.name, level: p.level, is_paid: p.price_cents > 0, count: res.count || 0 })),
+  );
+
   const [
-    // Subscribers
-    totalProfiles, freeCount, startCount, proCount, vipCount,
+    // Subscribers totais
+    totalProfiles,
+    // Plan counts (dinâmico)
+    planCountResults,
     // Subscription status
     activeSubCount, pastDueCount, canceledCount,
-    // Growth: signups this week vs last week
+    // Growth
     signupsThisWeek, signupsLastWeek,
-    // Revenue: orders
-    revenueTotal, revenueThisMonth, ordersPending, ordersPaid, ordersShipped, ordersDelivered, ordersCanceled,
+    // Revenue
+    revenueTotal, revenueThisMonth,
+    ordersPending, ordersPaid, ordersShipped, ordersDelivered, ordersCanceled,
     // Consultations
     consultPending, consultInProgress, consultDelivered,
     // Chat VIP
@@ -343,25 +364,18 @@ export async function getDashboardMetrics() {
     totalCouponsActive, totalCouponsExpired,
     // Rankings
     topWorkouts, topCoupons, topAffiliates,
-    // Stock alerts
+    // Alerts
     lowStockProducts,
-    // Recent signups (for list)
+    // Recent
     recentSignups,
   ] = await Promise.all([
-    // ── Subscribers ──
     supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("plan_tier", "free"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("plan_tier", "start"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("plan_tier", "pro"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("plan_tier", "vip"),
-    // ── Subscription status ──
+    Promise.all(planCountQueries),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("subscription_status", "active"),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("subscription_status", "past_due"),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("subscription_status", "canceled"),
-    // ── Growth ──
     supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", weekAgo),
     supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", twoWeeksAgo).lt("created_at", weekAgo),
-    // ── Revenue ──
     supabase.from("orders").select("total_cents").in("status", ["paid", "shipped", "delivered"]),
     supabase.from("orders").select("total_cents").in("status", ["paid", "shipped", "delivered"]).gte("created_at", monthAgo),
     supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
@@ -369,28 +383,24 @@ export async function getDashboardMetrics() {
     supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "shipped"),
     supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "delivered"),
     supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "canceled"),
-    // ── Consultations ──
     supabase.from("consultations").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("consultations").select("id", { count: "exact", head: true }).eq("status", "in_progress"),
     supabase.from("consultations").select("id", { count: "exact", head: true }).eq("status", "delivered"),
-    // ── Chat VIP ──
     supabase.from("messages").select("id", { count: "exact", head: true }).eq("sender_role", "user").eq("is_read", false),
-    // ── Content counts ──
     supabase.from("workout_videos").select("id", { count: "exact", head: true }),
     supabase.from("workout_videos").select("id", { count: "exact", head: true }).eq("is_published", true),
     supabase.from("coupons").select("id", { count: "exact", head: true }).eq("is_active", true),
     supabase.from("coupons").select("id", { count: "exact", head: true }).lt("valid_until", now.toISOString()).eq("is_active", true),
-    // ── Rankings ──
     supabase.from("workout_videos").select("id, title, views_count").eq("is_published", true).order("views_count", { ascending: false }).limit(5),
     supabase.from("coupons").select("id, code, uses_count").eq("is_active", true).order("uses_count", { ascending: false }).limit(5),
     supabase.from("affiliate_links").select("id, title, clicks_count").eq("is_active", true).order("clicks_count", { ascending: false }).limit(5),
-    // ── Stock alerts ──
     supabase.from("products").select("id, title, stock").eq("is_active", true).lte("stock", 5).order("stock", { ascending: true }).limit(5),
-    // ── Recent signups ──
     supabase.from("profiles").select("id, full_name, plan_tier, created_at").order("created_at", { ascending: false }).limit(5),
   ]);
 
-  // Calculate revenue sums
+  const planCounts: PlanCount[] = planCountResults;
+  const paidUsersTotal = planCounts.filter(p => p.is_paid).reduce((sum, p) => sum + p.count, 0);
+
   const revenueTotalCents = (revenueTotal.data || []).reduce((sum, o) => sum + (o.total_cents || 0), 0);
   const revenueMonthCents = (revenueThisMonth.data || []).reduce((sum, o) => sum + (o.total_cents || 0), 0);
 
@@ -401,24 +411,17 @@ export async function getDashboardMetrics() {
     : signupsThisWeekCount > 0 ? 100 : 0;
 
   return {
-    // Subscribers
     totalSubscribers: totalProfiles.count || 0,
-    planCounts: {
-      free: freeCount.count || 0,
-      start: startCount.count || 0,
-      pro: proCount.count || 0,
-      vip: vipCount.count || 0,
-    },
+    planCounts,
+    paidUsersTotal,
     subscriptionStatus: {
       active: activeSubCount.count || 0,
       pastDue: pastDueCount.count || 0,
       canceled: canceledCount.count || 0,
     },
-    // Growth
     signupsThisWeek: signupsThisWeekCount,
     signupsLastWeek: signupsLastWeekCount,
     growthPct,
-    // Revenue
     revenueTotalCents,
     revenueMonthCents,
     orders: {
@@ -428,26 +431,20 @@ export async function getDashboardMetrics() {
       delivered: ordersDelivered.count || 0,
       canceled: ordersCanceled.count || 0,
     },
-    // Consultations
     consultations: {
       pending: consultPending.count || 0,
       inProgress: consultInProgress.count || 0,
       delivered: consultDelivered.count || 0,
     },
-    // Chat
     unreadMessages: unreadMessages.count || 0,
-    // Content
     totalWorkouts: totalWorkouts.count || 0,
     publishedWorkouts: totalWorkoutsPublished.count || 0,
     activeCoupons: totalCouponsActive.count || 0,
     expiredCoupons: totalCouponsExpired.count || 0,
-    // Rankings
     topWorkouts: topWorkouts.data || [],
     topCoupons: topCoupons.data || [],
     topAffiliates: topAffiliates.data || [],
-    // Alerts
     lowStockProducts: (lowStockProducts.data || []) as { id: string; title: string; stock: number }[],
-    // Recent
     recentSignups: (recentSignups.data || []) as { id: string; full_name: string; plan_tier: string; created_at: string }[],
   };
 }

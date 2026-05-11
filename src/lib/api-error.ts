@@ -18,8 +18,14 @@ async function loadSentry(): Promise<SentryCapture | null> {
   sentryLoadAttempted = true;
   if (!process.env.SENTRY_DSN) return null;
   try {
-    // @ts-expect-error pacote opcional: instalar com `npm i @sentry/nextjs` em prod
-    const mod = await import("@sentry/nextjs");
+    // Build pelo nome dinamico — esconde o specifier do webpack/turbopack para
+    // que NAO emitam warning "Can't resolve '@sentry/nextjs'" quando o pacote
+    // nao estiver instalado. Quando @sentry/nextjs estiver em deps, este
+    // import funciona normalmente em runtime.
+    const sentryPkg = ["@sentry", "nextjs"].join("/");
+    const mod = (await import(/* webpackIgnore: true */ /* @vite-ignore */ sentryPkg)) as {
+      captureException: (e: unknown, ctx?: { extra?: Record<string, unknown> }) => void;
+    };
     sentryCapture = (error, ctx) => mod.captureException(error, ctx);
     return sentryCapture;
   } catch {

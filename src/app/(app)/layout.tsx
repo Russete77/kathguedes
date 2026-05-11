@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { UserButton } from "@clerk/nextjs";
 import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { PushPrompt } from "@/components/layout/push-prompt";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -15,15 +16,18 @@ export default async function AppLayout({
   const { userId } = await auth();
   if (!userId) return null;
 
-  // Verificar se profile existe no Supabase
+  // ── Onboarding gate
+  // FONTE DE VERDADE: o `middleware.ts` lê `sessionClaims.metadata.onboarding_completed`
+  // (Clerk) e redireciona /onboarding antes desta layout rodar. Aqui apenas
+  // garantimos que existe profile correspondente no Supabase — primeira passada
+  // após o signup do Clerk (Clerk webhook não está instrumentado ainda).
   const supabase = createAdminSupabaseClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, phone")
+    .select("id")
     .eq("id", userId)
     .single();
 
-  // Sem profile → criar e redirecionar pra onboarding
   if (!profile) {
     const user = await currentUser();
     await supabase.from("profiles").insert({
@@ -32,11 +36,6 @@ export default async function AppLayout({
       plan_tier: "free",
       subscription_status: "active",
     });
-    redirect("/onboarding");
-  }
-
-  // Profile existe mas sem telefone → onboarding incompleto
-  if (!profile.phone) {
     redirect("/onboarding");
   }
 
@@ -68,6 +67,7 @@ export default async function AppLayout({
       <main className="pb-28">{children}</main>
 
       <BottomTabBar />
+      <PushPrompt />
     </div>
   );
 }

@@ -247,6 +247,249 @@ type OrderFields = {
   updated_at: string;
 };
 
+// ── Billing / financeiro ──
+
+export type PlanRow = {
+  slug: PlanTier;
+  name: string;
+  level: number;
+  price_cents: number;
+  asaas_value: number;
+  asaas_description: string;
+  cashback_pct: number;
+  store_discount_pct: number;
+  estetica_discount_pct: number;
+  features: Record<string, unknown>;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TeamRole = "owner" | "partner" | "consultant";
+export type TeamMemberRow = {
+  id: string;
+  clerk_user_id: string | null;
+  email: string;
+  full_name: string;
+  role: TeamRole;
+  pix_key: string | null;
+  bank_account: Record<string, unknown> | null;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type RevenueStreamType = "mensalidade" | "loja" | "estetica" | "afiliado_externo";
+export type RevenueReferenceType = "subscription" | "order" | "booking" | "affiliate_payout";
+export type RevenueStreamStatus = "pending" | "confirmed" | "refunded";
+export type RevenueStreamRow = {
+  id: string;
+  type: RevenueStreamType;
+  category: string | null;
+  user_id: string | null;
+  reference_type: RevenueReferenceType;
+  reference_id: string;
+  asaas_payment_id: string | null;
+  gross_cents: number;
+  cost_cents: number;
+  net_cents: number; // generated column
+  cashback_used_cents: number;
+  status: RevenueStreamStatus;
+  occurred_at: string;
+  created_at: string;
+};
+
+export type CommissionRuleRow = {
+  id: string;
+  team_member_id: string;
+  applies_to_type: RevenueStreamType | null;
+  applies_to_category: string | null;
+  pct: number;
+  applies_from: string;
+  applies_to: string | null;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type CommissionAllocationStatus = "draft" | "approved" | "paid" | "failed";
+export type CommissionAllocationRow = {
+  id: string;
+  revenue_stream_id: string;
+  team_member_id: string;
+  pct: number;
+  amount_cents: number;
+  status: CommissionAllocationStatus;
+  paid_at: string | null;
+  payout_reference: string | null;
+  created_at: string;
+};
+
+export type WalletCreditRow = {
+  id: string;
+  user_id: string;
+  source_revenue_stream_id: string | null;
+  spent_on_revenue_stream_id: string | null;
+  amount_cents: number;
+  expires_at: string | null;
+  used_at: string | null;
+  created_at: string;
+};
+
+export type WalletBalanceRow = {
+  user_id: string;
+  active_cents: number;
+  earned_total_cents: number;
+  spent_total_cents: number;
+  expired_total_cents: number;
+  updated_at: string;
+};
+
+export type MonthlyUsageRow = {
+  user_id: string;
+  year_month: string;
+  affiliate_clicks_count: number;
+};
+
+// ── Estética ──
+
+export type EsteticaServiceCategory =
+  | "lavagem"
+  | "polimento"
+  | "vitrificacao"
+  | "higienizacao"
+  | "cristalizacao"
+  | "outros";
+
+export type EsteticaServiceRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  category: EsteticaServiceCategory;
+  duration_min: number;
+  price_cents: number;
+  cost_cents: number;
+  compare_price: number | null;
+  includes: string[];
+  eligible_for_loyalty: boolean;
+  requires_paid_plan: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+};
+
+export type EsteticaBookingStatus =
+  | "pending"
+  | "confirmed"
+  | "in_progress"
+  | "done"
+  | "canceled"
+  | "no_show";
+
+export type EsteticaBookingRow = {
+  id: string;
+  user_id: string;
+  service_id: string;
+  scheduled_at: string;
+  duration_min: number;
+  vehicle_brand: string;
+  vehicle_model: string;
+  vehicle_plate: string;
+  vehicle_color: string | null;
+  customer_name: string;
+  customer_phone: string;
+  status: EsteticaBookingStatus;
+  price_cents: number;
+  plan_discount_cents: number;
+  loyalty_free: boolean;
+  total_cents: number;
+  cashback_used_cents: number;
+  asaas_payment_id: string | null;
+  paid_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EsteticaScheduleRow = {
+  day_of_week: number;
+  opens_at: string | null;
+  closes_at: string | null;
+  is_closed: boolean;
+  slot_minutes: number;
+};
+
+export type EsteticaSlotBlockedRow = {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  reason: string | null;
+  created_at: string;
+};
+
+export type EsteticaPortfolioRow = {
+  id: string;
+  title: string | null;
+  service_id: string | null;
+  before_url: string;
+  after_url: string;
+  description: string | null;
+  is_featured: boolean;
+  sort_order: number;
+  created_at: string;
+};
+
+export type EsteticaLoyaltyPhotoRow = {
+  id: string;
+  user_id: string;
+  booking_id: string;
+  photo_url: string;
+  month: string;
+  approved: boolean;
+  approved_at: string | null;
+  created_at: string;
+};
+
+// ── Eventos moto / desafios ──
+
+export type MotoEventRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  event_date: string;
+  location: string | null;
+  location_url: string | null;
+  image_url: string | null;
+  max_participants: number | null;
+  current_participants: number;
+  required_plan: PlanTier;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type ChallengeRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  type: "streak" | "volume" | "custom";
+  target_value: number;
+  start_date: string;
+  end_date: string;
+  reward_text: string | null;
+  image_url: string | null;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type ChallengeParticipantRow = {
+  id: string;
+  challenge_id: string;
+  user_id: string;
+  current_value: number;
+  completed_at: string | null;
+  joined_at: string;
+};
+
 export interface Database {
   public: {
     Views: Record<string, never>;
@@ -328,9 +571,116 @@ export interface Database {
         Update: Partial<{ name: string; description: string | null; type: string; data: unknown; is_active: boolean }>;
       };
       coupon_uses: {
-        Row: { id: string; user_id: string; coupon_id: string; created_at: string };
+        Row: { id: string; user_id: string; coupon_id: string; used_at: string };
         Insert: { user_id: string; coupon_id: string };
         Update: Partial<{ user_id: string; coupon_id: string }>;
+      };
+      plans: {
+        Row: PlanRow;
+        Insert: Partial<PlanRow> & Pick<PlanRow, "slug" | "name" | "level" | "price_cents" | "asaas_value" | "asaas_description">;
+        Update: Partial<PlanRow>;
+      };
+      team_members: {
+        Row: TeamMemberRow;
+        Insert: Partial<TeamMemberRow> & Pick<TeamMemberRow, "email" | "full_name" | "role">;
+        Update: Partial<TeamMemberRow>;
+      };
+      commission_rules: {
+        Row: CommissionRuleRow;
+        Insert: Partial<CommissionRuleRow> & Pick<CommissionRuleRow, "team_member_id" | "pct">;
+        Update: Partial<CommissionRuleRow>;
+      };
+      commission_allocations: {
+        Row: CommissionAllocationRow;
+        Insert: Partial<CommissionAllocationRow> &
+          Pick<CommissionAllocationRow, "revenue_stream_id" | "team_member_id" | "pct" | "amount_cents">;
+        Update: Partial<CommissionAllocationRow>;
+      };
+      revenue_streams: {
+        Row: RevenueStreamRow;
+        Insert: Partial<RevenueStreamRow> &
+          Pick<RevenueStreamRow, "type" | "reference_type" | "reference_id" | "gross_cents" | "occurred_at">;
+        Update: Partial<RevenueStreamRow>;
+      };
+      wallet_credits: {
+        Row: WalletCreditRow;
+        Insert: Partial<WalletCreditRow> & Pick<WalletCreditRow, "user_id" | "amount_cents">;
+        Update: Partial<WalletCreditRow>;
+      };
+      wallet_balance: {
+        Row: WalletBalanceRow;
+        Insert: Partial<WalletBalanceRow> & Pick<WalletBalanceRow, "user_id">;
+        Update: Partial<WalletBalanceRow>;
+      };
+      monthly_usage: {
+        Row: MonthlyUsageRow;
+        Insert: Partial<MonthlyUsageRow> & Pick<MonthlyUsageRow, "user_id" | "year_month">;
+        Update: Partial<MonthlyUsageRow>;
+      };
+      estetica_services: {
+        Row: EsteticaServiceRow;
+        Insert: Partial<EsteticaServiceRow> &
+          Pick<EsteticaServiceRow, "title" | "category" | "price_cents">;
+        Update: Partial<EsteticaServiceRow>;
+      };
+      estetica_bookings: {
+        Row: EsteticaBookingRow;
+        Insert: Partial<EsteticaBookingRow> &
+          Pick<
+            EsteticaBookingRow,
+            | "user_id"
+            | "service_id"
+            | "scheduled_at"
+            | "duration_min"
+            | "vehicle_brand"
+            | "vehicle_model"
+            | "vehicle_plate"
+            | "customer_name"
+            | "customer_phone"
+            | "price_cents"
+            | "total_cents"
+          >;
+        Update: Partial<EsteticaBookingRow>;
+      };
+      estetica_schedule: {
+        Row: EsteticaScheduleRow;
+        Insert: Partial<EsteticaScheduleRow> & Pick<EsteticaScheduleRow, "day_of_week">;
+        Update: Partial<EsteticaScheduleRow>;
+      };
+      estetica_slots_blocked: {
+        Row: EsteticaSlotBlockedRow;
+        Insert: Partial<EsteticaSlotBlockedRow> &
+          Pick<EsteticaSlotBlockedRow, "starts_at" | "ends_at">;
+        Update: Partial<EsteticaSlotBlockedRow>;
+      };
+      estetica_portfolio: {
+        Row: EsteticaPortfolioRow;
+        Insert: Partial<EsteticaPortfolioRow> &
+          Pick<EsteticaPortfolioRow, "before_url" | "after_url">;
+        Update: Partial<EsteticaPortfolioRow>;
+      };
+      estetica_loyalty_photos: {
+        Row: EsteticaLoyaltyPhotoRow;
+        Insert: Partial<EsteticaLoyaltyPhotoRow> &
+          Pick<EsteticaLoyaltyPhotoRow, "user_id" | "booking_id" | "photo_url" | "month">;
+        Update: Partial<EsteticaLoyaltyPhotoRow>;
+      };
+      moto_events: {
+        Row: MotoEventRow;
+        Insert: Partial<MotoEventRow> & Pick<MotoEventRow, "title" | "event_date">;
+        Update: Partial<MotoEventRow>;
+      };
+      challenges: {
+        Row: ChallengeRow;
+        Insert: Partial<ChallengeRow> &
+          Pick<ChallengeRow, "title" | "type" | "target_value" | "start_date" | "end_date">;
+        Update: Partial<ChallengeRow>;
+      };
+      challenge_participants: {
+        Row: ChallengeParticipantRow;
+        Insert: Partial<ChallengeParticipantRow> &
+          Pick<ChallengeParticipantRow, "challenge_id" | "user_id">;
+        Update: Partial<ChallengeParticipantRow>;
       };
     };
   };

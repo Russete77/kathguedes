@@ -1,4 +1,4 @@
-import { getDashboardMetrics } from "../actions";
+import { getDashboardMetrics, type PlanCount } from "../actions";
 import Link from "next/link";
 import {
   Users,
@@ -36,15 +36,43 @@ function timeAgo(dateStr: string) {
   return `${days}d atrás`;
 }
 
+// Cores cíclicas usadas pra distinguir os planos no gráfico/legenda.
+// Usa tokens do DS sempre que possível; cores específicas mapeiam variações de paleta neutra.
+const PLAN_PALETTE = [
+  "bg-gray-2",
+  "bg-cyan-400",
+  "bg-pink",
+  "bg-yellow-400",
+  "bg-green-400",
+  "bg-purple-400",
+  "bg-orange-400",
+  "bg-rose-400",
+];
+
+const PLAN_BADGE_PALETTE = [
+  "bg-gray-4 text-gray-2",
+  "bg-cyan-400/20 text-cyan-400",
+  "bg-pink/20 text-pink",
+  "bg-yellow-400/20 text-yellow-400",
+  "bg-green-400/20 text-green-400",
+  "bg-purple-400/20 text-purple-400",
+  "bg-orange-400/20 text-orange-400",
+  "bg-rose-400/20 text-rose-400",
+];
+
 export default async function AdminDashboardPage() {
   const m = await getDashboardMetrics();
 
-  const paidUsers = m.planCounts.start + m.planCounts.pro + m.planCounts.vip;
   const conversionRate = m.totalSubscribers > 0
-    ? ((paidUsers / m.totalSubscribers) * 100).toFixed(1)
+    ? ((m.paidUsersTotal / m.totalSubscribers) * 100).toFixed(1)
     : "0";
 
-  const hasAlerts = m.consultations.pending > 0 || m.unreadMessages > 0 || m.lowStockProducts.length > 0 || m.orders.pending > 0 || m.expiredCoupons > 0;
+  const hasAlerts =
+    m.consultations.pending > 0 ||
+    m.unreadMessages > 0 ||
+    m.lowStockProducts.length > 0 ||
+    m.orders.pending > 0 ||
+    m.expiredCoupons > 0;
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">
@@ -73,7 +101,7 @@ export default async function AdminDashboardPage() {
               <MessageCircle size={24} className="stroke-pink shrink-0" />
               <div>
                 <div className="text-white font-semibold text-base">{m.unreadMessages} mensagen{m.unreadMessages > 1 ? "s" : ""}</div>
-                <div className="text-pink/70 text-sm">VIP não lidas</div>
+                <div className="text-pink/70 text-sm">não lidas</div>
               </div>
             </Link>
           )}
@@ -114,7 +142,7 @@ export default async function AdminDashboardPage() {
           icon={<BarChart2 size={26} className="stroke-pink" />}
           label="Conversão Free → Pago"
           value={`${conversionRate}%`}
-          sub={`${paidUsers} pagantes de ${m.totalSubscribers}`}
+          sub={`${m.paidUsersTotal} pagantes de ${m.totalSubscribers}`}
         />
       </div>
 
@@ -134,39 +162,7 @@ export default async function AdminDashboardPage() {
             trend={m.growthPct}
             sub={`semana anterior: ${m.signupsLastWeek}`}
           />
-          <div className="bg-bg-1 border border-gray-4 rounded-[14px] p-6 col-span-2">
-            <div className="text-sm font-semibold text-gray-2 uppercase tracking-wider mb-4">Distribuição de Planos</div>
-            <div className="flex gap-3 mb-4">
-              {[
-                { label: "Free", count: m.planCounts.free, color: "bg-gray-2" },
-                { label: "Start", count: m.planCounts.start, color: "bg-cyan-400" },
-                { label: "Pro", count: m.planCounts.pro, color: "bg-pink" },
-                { label: "VIP", count: m.planCounts.vip, color: "bg-yellow-400" },
-              ].map((p) => (
-                <div key={p.label} className="flex-1 text-center">
-                  <div className="font-display text-3xl text-white">{p.count}</div>
-                  <div className="text-sm text-gray-3 mt-1">{p.label}</div>
-                </div>
-              ))}
-            </div>
-            {/* Bar chart */}
-            <div className="flex h-4 rounded-full overflow-hidden bg-bg-2">
-              {m.totalSubscribers > 0 && (
-                <>
-                  <div className="bg-gray-2 transition-all" style={{ width: `${(m.planCounts.free / m.totalSubscribers) * 100}%` }} />
-                  <div className="bg-cyan-400 transition-all" style={{ width: `${(m.planCounts.start / m.totalSubscribers) * 100}%` }} />
-                  <div className="bg-pink transition-all" style={{ width: `${(m.planCounts.pro / m.totalSubscribers) * 100}%` }} />
-                  <div className="bg-yellow-400 transition-all" style={{ width: `${(m.planCounts.vip / m.totalSubscribers) * 100}%` }} />
-                </>
-              )}
-            </div>
-            {/* Subscription health */}
-            <div className="flex gap-5 mt-4 text-sm">
-              <span className="text-green-400">● {m.subscriptionStatus.active} ativos</span>
-              <span className="text-yellow-400">● {m.subscriptionStatus.pastDue} inadimplentes</span>
-              <span className="text-red-400">● {m.subscriptionStatus.canceled} cancelados</span>
-            </div>
-          </div>
+          <PlanDistribution planCounts={m.planCounts} total={m.totalSubscribers} status={m.subscriptionStatus} />
         </div>
       </div>
 
@@ -303,7 +299,7 @@ export default async function AdminDashboardPage() {
                 <div key={u.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="text-base text-gray-1 truncate">{u.full_name}</span>
-                    <PlanBadge tier={u.plan_tier} />
+                    <PlanBadge tier={u.plan_tier} planCounts={m.planCounts} />
                   </div>
                   <span className="font-mono text-sm text-gray-3 shrink-0">{timeAgo(u.created_at)}</span>
                 </div>
@@ -407,15 +403,53 @@ function RankingCard({
   );
 }
 
-function PlanBadge({ tier }: { tier: string }) {
-  const colors: Record<string, string> = {
-    free: "bg-gray-4 text-gray-2",
-    start: "bg-cyan-400/20 text-cyan-400",
-    pro: "bg-pink/20 text-pink",
-    vip: "bg-yellow-400/20 text-yellow-400",
-  };
+function PlanDistribution({
+  planCounts,
+  total,
+  status,
+}: {
+  planCounts: PlanCount[];
+  total: number;
+  status: { active: number; pastDue: number; canceled: number };
+}) {
   return (
-    <span className={`text-xs font-mono font-semibold uppercase px-2 py-0.5 rounded ${colors[tier] || colors.free}`}>
+    <div className="bg-bg-1 border border-gray-4 rounded-[14px] p-6 col-span-2">
+      <div className="text-sm font-semibold text-gray-2 uppercase tracking-wider mb-4">Distribuição de Planos</div>
+      <div className="flex flex-wrap gap-3 mb-4">
+        {planCounts.map((p) => (
+          <div key={p.slug} className="flex-1 min-w-[80px] text-center">
+            <div className="font-display text-2xl lg:text-3xl text-white">{p.count}</div>
+            <div className="text-xs text-gray-3 mt-1 truncate">{p.name}</div>
+          </div>
+        ))}
+      </div>
+      {/* Bar chart */}
+      <div className="flex h-4 rounded-full overflow-hidden bg-bg-2">
+        {total > 0 &&
+          planCounts.map((p, i) => (
+            <div
+              key={p.slug}
+              className={`${PLAN_PALETTE[i % PLAN_PALETTE.length]} transition-all`}
+              style={{ width: `${(p.count / total) * 100}%` }}
+              title={`${p.name}: ${p.count}`}
+            />
+          ))}
+      </div>
+      {/* Subscription health */}
+      <div className="flex gap-5 mt-4 text-sm flex-wrap">
+        <span className="text-green-400">● {status.active} ativos</span>
+        <span className="text-yellow-400">● {status.pastDue} inadimplentes</span>
+        <span className="text-red-400">● {status.canceled} cancelados</span>
+      </div>
+    </div>
+  );
+}
+
+function PlanBadge({ tier, planCounts }: { tier: string; planCounts: PlanCount[] }) {
+  const idx = planCounts.findIndex((p) => p.slug === tier);
+  const cls = idx >= 0 ? PLAN_BADGE_PALETTE[idx % PLAN_BADGE_PALETTE.length] : PLAN_BADGE_PALETTE[0];
+  return (
+    <span className={`text-xs font-mono font-semibold uppercase px-2 py-0.5 rounded ${cls}`}>
       {tier}
     </span>
   );

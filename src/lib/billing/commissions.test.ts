@@ -39,7 +39,7 @@ describe("listAllocations", () => {
     const gte = vi.fn().mockReturnValue({ lte, order });
     const eq2: ReturnType<typeof vi.fn> = vi
       .fn()
-      .mockReturnValue({ gte, lte, order, eq: (...a: unknown[]) => eq2(...a) });
+      .mockReturnValue({ gte, lte, order, eq: (...a: unknown[]) => (eq2 as unknown as (...args: unknown[]) => unknown)(...a) });
     const eq1 = vi.fn().mockReturnValue({ eq: eq2, gte, lte, order });
     const select = vi.fn().mockReturnValue({ eq: eq1, gte, lte, order });
     mockFrom.mockReturnValue({ select });

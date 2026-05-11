@@ -1460,6 +1460,7 @@ export type Database = {
         Args: { p_date: string; p_duration_min: number }
         Returns: string[]
       }
+      increment_affiliate_clicks: { Args: { link_id: string }; Returns: undefined }
       increment_coupon_uses: { Args: { coupon_id: string }; Returns: undefined }
       increment_stock: {
         Args: { p_product_id: string; p_quantity: number }

@@ -61,15 +61,32 @@ export async function POST(req: NextRequest) {
 
   // Verificar se Asaas está configurado
   const asaasKey = process.env.ASAAS_API_KEY;
+  // Em produção, PIX manual fallback é INACEITÁVEL — esconde falha de
+  // configuração/integração. Retornar 503 para alertar e abrir incidente.
+  // Em preview/dev, mantém fallback para permitir UX testing sem Asaas key.
+  const isProd =
+    process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview";
+
   if (!asaasKey) {
-    // Retorna dados para pagamento manual via Pix
+    if (isProd) {
+      console.error("[loja/payment] ASAAS_API_KEY missing in production", { orderId });
+      return NextResponse.json(
+        {
+          error: "payment_provider_unavailable",
+          message:
+            "O processador de pagamento está temporariamente indisponível. Tente novamente em alguns minutos.",
+        },
+        { status: 503 },
+      );
+    }
+    // Dev / preview: retornar dados para pagamento manual via Pix
     return NextResponse.json({
       method: "manual_pix",
       total: totalReais,
       pixKey: process.env.PIX_KEY || null,
       pixName: process.env.PIX_NAME || "KathApp",
       instructions:
-        "Faça um Pix no valor acima para a chave indicada e envie o comprovante pelo WhatsApp.",
+        "[DEV] Faça um Pix no valor acima para a chave indicada e envie o comprovante pelo WhatsApp.",
     });
   }
 
@@ -165,14 +182,26 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[loja/payment] Error:", err);
-    // Fallback para Pix manual
+    // Em produção: 503 explícito (Asaas falhou após config ok); o usuário
+    // tenta de novo e o admin recebe o sinal pra abrir incidente.
+    if (isProd) {
+      return NextResponse.json(
+        {
+          error: "payment_provider_error",
+          message:
+            "Não foi possível gerar a cobrança Pix neste momento. Por favor tente novamente em alguns minutos.",
+        },
+        { status: 503 },
+      );
+    }
+    // Dev / preview: Pix manual permitido como fallback
     return NextResponse.json({
       method: "manual_pix",
       total: totalReais,
       pixKey: process.env.PIX_KEY || null,
       pixName: process.env.PIX_NAME || "KathApp",
       instructions:
-        "Erro ao gerar Pix automático. Faça um Pix manualmente e envie o comprovante.",
+        "[DEV] Erro ao gerar Pix automático. Faça um Pix manualmente e envie o comprovante.",
     });
   }
 }
