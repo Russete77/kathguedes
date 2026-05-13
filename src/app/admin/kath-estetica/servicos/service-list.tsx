@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Trash2, Pencil, Loader2 } from "lucide-react";
 import { deleteService } from "../actions";
 import { toast } from "sonner";

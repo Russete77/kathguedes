@@ -28,7 +28,7 @@ import type { PlanTier } from "@/lib/supabase/types";
 export const metadata: Metadata = {
   title: "Kath Guedes Estética Moto",
   description:
-    "Estética profissional para motos — lavagem premium, polimento, vitrificação, higienização, cristalização. Agende, pague e acompanhe pelo app. Programa de fidelidade: 4 lavagens com foto → 5ª grátis.",
+    "Estética profissional para motos — lavagem premium, polimento, vitrificação, higienização, cristalização. Agende, pague e acompanhe pelo app. Programa de fidelidade: 3 lavagens com foto → 4ª grátis.",
   keywords: [
     "kath guedes estética moto",
     "estética para motos",
@@ -195,11 +195,11 @@ export default async function KathEsteticaHubPage() {
                 PROGRAMA FIDELIDADE
               </Badge>
               <h2 className="font-display text-2xl lg:text-3xl text-white leading-tight">
-                4 LAVAGENS COM FOTO = <span className="text-pink">5ª GRÁTIS</span>
+                3 LAVAGENS COM FOTO = <span className="text-pink">4ª GRÁTIS</span>
               </h2>
               <p className="text-gray-2 text-sm mt-1 max-w-md">
                 A cada lavagem, envie uma foto da sua moto na Kath Estética Moto.
-                Ao bater 4 no mês, a 5ª sai 100% grátis.
+                Ao bater 3 no mês, a 4ª sai 100% grátis.
               </p>
             </div>
           </div>
@@ -344,7 +344,7 @@ export default async function KathEsteticaHubPage() {
         />
         <FeatureTile
           icon={<Gift size={24} className="stroke-pink" />}
-          title="5ª LAVAGEM GRÁTIS"
+          title="4ª LAVAGEM GRÁTIS"
           desc="Programa de fidelidade mensal"
         />
       </section>

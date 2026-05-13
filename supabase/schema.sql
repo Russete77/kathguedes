@@ -1352,7 +1352,7 @@ begin
       and to_char(scheduled_at, 'YYYY-MM') = v_current_month
   ) into v_already_used;
 
-  return v_approved_count >= 4 and not v_already_used;
+  return v_approved_count >= 3 and not v_already_used;
 end;
 $$;
 

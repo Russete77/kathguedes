@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Loader2, Copy, Check, QrCode, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
@@ -109,9 +110,12 @@ export function PaymentPanel({
         {payment.pixQrCode && (
           <div className="flex justify-center">
             <div className="bg-white rounded-2xl p-4 inline-block">
-              <img
+              <Image
                 src={`data:image/png;base64,${payment.pixQrCode}`}
                 alt="QR Code Pix"
+                width={220}
+                height={220}
+                unoptimized
                 className="w-[220px] h-[220px]"
               />
             </div>

@@ -1,5 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase/server";
 import { processCheckout } from "@/lib/asaas/checkout";
 import { ASAAS_CONFIG } from "@/lib/asaas/config";
 import { NextRequest, NextResponse } from "next/server";
@@ -11,9 +11,21 @@ import { handleApiError } from "@/lib/api-error";
 
 const billingTypeSchema = z.enum(["PIX", "BOLETO", "CREDIT_CARD"]);
 
+// CPF (11 digitos) ou CNPJ (14 digitos). Aceita com mascara, normalizamos pra digitos puros.
+const cpfCnpjSchema = z
+  .string()
+  .min(1, "CPF ou CNPJ obrigatorio")
+  .transform((v) => v.replace(/[^0-9]/g, ""))
+  .refine((v) => v.length === 11 || v.length === 14, {
+    message: "CPF deve ter 11 digitos ou CNPJ 14 digitos",
+  });
+
 const subscribeBodySchema = z.object({
   plan: z.string().min(1, "plan obrigatorio"),
   billingType: billingTypeSchema,
+  // CPF opcional no body: se vier, atualiza profile.cpf; se nao, usa o que ja
+  // estiver salvo no profile. Se ambos vazios, retorna 400.
+  cpfCnpj: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -44,7 +56,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
-    const { plan, billingType } = parsed.data;
+    const { plan, billingType, cpfCnpj: cpfFromBody } = parsed.data;
 
     const activePlans = await getActivePlans();
     const validPaidSlugs = activePlans
@@ -78,12 +90,44 @@ export async function POST(req: NextRequest) {
     const supabase = await createServerSupabaseClient();
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, cpf")
       .eq("id", userId)
       .single();
 
     if (profileError || !profile) {
       return NextResponse.json({ error: "Perfil nao encontrado" }, { status: 404 });
+    }
+
+    // Resolver CPF efetivo: prioriza o do body (recem-coletado),
+    // fallback pra profile.cpf (ja persistido).
+    let cpfRaw: string | null = null;
+    if (cpfFromBody) {
+      const cpfParsed = cpfCnpjSchema.safeParse(cpfFromBody);
+      if (!cpfParsed.success) {
+        return NextResponse.json(
+          { error: cpfParsed.error.flatten() },
+          { status: 400 },
+        );
+      }
+      cpfRaw = cpfParsed.data;
+    } else if (profile.cpf) {
+      cpfRaw = profile.cpf.replace(/[^0-9]/g, "");
+    }
+
+    if (!cpfRaw) {
+      return NextResponse.json(
+        {
+          error: "cpf_required",
+          message: "CPF ou CNPJ obrigatorio para criar a cobranca.",
+        },
+        { status: 400 },
+      );
+    }
+
+    // Se CPF veio do body, persiste antes do checkout (idempotente em re-tentativas)
+    if (cpfFromBody && cpfRaw !== profile.cpf) {
+      const admin = createAdminSupabaseClient();
+      await admin.from("profiles").update({ cpf: cpfRaw }).eq("id", userId);
     }
 
     const email = clerkUser.emailAddresses[0].emailAddress;
@@ -92,6 +136,7 @@ export async function POST(req: NextRequest) {
       userId,
       fullName: profile.full_name,
       email,
+      cpfCnpj: cpfRaw,
       plan: matched as Exclude<PlanTier, "free">,
       billingType,
     });

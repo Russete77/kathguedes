@@ -64,6 +64,39 @@ export async function notifyAll(params: NotifyParams) {
 }
 
 /**
+ * Notifica todos os membros admin ativos (owner + partner) — Kath, Russo, Sidney.
+ * Usado pra alertar o time de eventos operacionais: novos signups, novos bookings,
+ * novas mensagens VIP, fotos pendentes de aprovação, etc.
+ *
+ * Requisitos:
+ *  - team_members.role IN ('owner', 'partner')
+ *  - team_members.is_active = true
+ *  - team_members.clerk_user_id NOT NULL (precisa ter user Clerk vinculado pra receber push)
+ */
+export async function notifyAdmins(params: NotifyParams) {
+  const supabase = createAdminSupabaseClient();
+
+  const { data: admins } = await supabase
+    .from("team_members")
+    .select("clerk_user_id")
+    .in("role", ["owner", "partner"])
+    .eq("is_active", true)
+    .not("clerk_user_id", "is", null);
+
+  if (!admins?.length) {
+    console.warn("[notifyAdmins] nenhum admin com clerk_user_id encontrado");
+    return;
+  }
+
+  // In-app + push em paralelo (cada admin recebe individualmente)
+  const tasks = admins
+    .filter((a): a is { clerk_user_id: string } => !!a.clerk_user_id)
+    .map((a) => notifyUser(a.clerk_user_id, params));
+
+  await Promise.allSettled(tasks);
+}
+
+/**
  * Notifica assinantes de um plano específico ou superior.
  * Ordem: free < acesso < plano1 < plano2 < plano3 < atleta.
  */
@@ -83,7 +116,6 @@ export async function notifyByPlan(
 
   if (!profiles?.length) return;
 
-  // Batch insert in-app notifications (instead of one-by-one)
   const batchSize = 100;
   const notifs = profiles.map((p) => ({
     user_id: p.id,
@@ -97,7 +129,6 @@ export async function notifyByPlan(
     await supabase.from("notifications").insert(notifs.slice(i, i + batchSize));
   }
 
-  // Push notifications in parallel (fire and forget)
   const pushPromises = profiles.map((p) => sendPushToUser(p.id, params));
   Promise.allSettled(pushPromises).catch(() => {});
 }

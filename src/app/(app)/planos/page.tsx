@@ -30,11 +30,12 @@ export default async function PlanosPage() {
   const supabase = await createServerSupabaseClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("plan_tier")
+    .select("plan_tier, cpf")
     .eq("id", userId)
     .single();
 
   const currentPlan: PlanTier = (profile?.plan_tier as PlanTier | undefined) ?? "free";
+  const currentCpf: string | null = (profile as { cpf?: string | null } | null)?.cpf ?? null;
   const plans = await getActivePlans();
 
   return (
@@ -54,6 +55,7 @@ export default async function PlanosPage() {
             key={plan.slug}
             plan={plan}
             currentPlan={currentPlan}
+            currentCpf={currentCpf}
             featured={plan.slug === "plano3"}
             premium={plan.slug === "atleta"}
           />
@@ -70,11 +72,13 @@ export default async function PlanosPage() {
 function PlanCard({
   plan,
   currentPlan,
+  currentCpf,
   featured,
   premium,
 }: {
   plan: Plan;
   currentPlan: PlanTier;
+  currentCpf: string | null;
   featured?: boolean;
   premium?: boolean;
 }) {
@@ -132,7 +136,7 @@ function PlanCard({
           Plano Gratuito
         </Button>
       ) : (
-        <SubscribeButton plan={plan} currentPlan={currentPlan} />
+        <SubscribeButton plan={plan} currentPlan={currentPlan} currentCpf={currentCpf} />
       )}
     </div>
   );

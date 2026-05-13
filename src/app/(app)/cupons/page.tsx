@@ -3,6 +3,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { CouponCard } from "@/components/coupons/coupon-card";
 import { Tag, Zap } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Cupons de Desconto",
   description: "Cupons de desconto exclusivos negociados pela Kath com marcas parceiras — fitness, moto e estética. Só para assinantes KathApp.",

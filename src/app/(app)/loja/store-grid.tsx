@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag, Plus, Minus, Trash2, Truck, Loader2 } from "lucide-react";
+import { ShoppingBag, Plus, Minus, Trash2, Truck, Loader2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import CashbackInput from "@/components/billing/cashback-input";
 
@@ -59,6 +59,7 @@ export function StoreGrid({
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartLoaded, setCartLoaded] = useState(false);
+  const [cartCollapsed, setCartCollapsed] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [cashbackCents, setCashbackCents] = useState(0);
@@ -323,15 +324,42 @@ export function StoreGrid({
         })}
       </div>
 
-      {/* Cart */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-24 right-4 left-4 sm:left-auto sm:bottom-6 sm:right-6 sm:w-[340px] bg-bg-1 border border-gray-4 rounded-[22px] p-5 shadow-card z-50">
+      {/* Cart — FAB minimizado */}
+      {cart.length > 0 && cartCollapsed && (
+        <button
+          type="button"
+          onClick={() => setCartCollapsed(false)}
+          aria-label="Abrir carrinho"
+          className="fixed bottom-28 right-4 sm:bottom-24 sm:right-6 z-[60] group flex items-center gap-2 bg-pink hover:bg-pink-light text-white font-display text-sm tracking-wider px-4 py-3 rounded-full shadow-pink transition-all hover:-translate-y-0.5"
+        >
+          <ShoppingBag size={18} />
+          <span className="hidden sm:inline">CARRINHO</span>
+          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 bg-white text-pink rounded-full text-[11px] font-bold">
+            {cart.reduce((s, i) => s + i.quantity, 0)}
+          </span>
+          <span className="font-mono text-[11px] opacity-80">
+            {formatPrice(cartTotal)}
+          </span>
+        </button>
+      )}
+
+      {/* Cart — expandido */}
+      {cart.length > 0 && !cartCollapsed && (
+        <div className="fixed bottom-28 right-4 left-4 sm:left-auto sm:bottom-24 sm:right-6 sm:w-[340px] bg-bg-1 border border-gray-4 rounded-[22px] p-5 shadow-card z-[60]">
           <div className="flex items-center gap-2 mb-4">
             <ShoppingBag size={18} className="stroke-pink" />
             <span className="font-display text-xl text-white">CARRINHO</span>
             <Badge variant="pink" className="ml-auto">
               {cart.reduce((s, i) => s + i.quantity, 0)}
             </Badge>
+            <button
+              type="button"
+              onClick={() => setCartCollapsed(true)}
+              aria-label="Minimizar carrinho"
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-bg-3 text-gray-2 hover:text-white hover:bg-bg-2 transition-colors"
+            >
+              <ChevronDown size={14} />
+            </button>
           </div>
 
           <div className="space-y-3 max-h-[200px] overflow-y-auto mb-4">
@@ -384,9 +412,10 @@ export function StoreGrid({
 
       {/* Checkout Modal */}
       {showCheckout && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] overflow-y-auto">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCheckout(false)} />
-          <div className="relative bg-bg-1 border border-gray-4 rounded-[22px] p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="relative min-h-full flex items-end sm:items-center justify-center sm:p-4">
+            <div className="relative bg-bg-1 border border-gray-4 rounded-t-[22px] sm:rounded-[22px] p-6 w-full max-w-md sm:my-auto">
             <h3 className="font-display text-2xl text-white mb-4">DADOS DE ENTREGA</h3>
             <form onSubmit={handleCheckout} className="space-y-3">
               <input name="name" placeholder="Nome completo" required className="w-full bg-bg-2 border border-gray-4 rounded-[8px] text-white text-[14px] px-4 py-3 outline-none focus:border-pink placeholder:text-gray-3" />
@@ -410,13 +439,18 @@ export function StoreGrid({
                 <Button
                   type="button"
                   variant="secondary"
-                  size="lg"
+                  size="sm"
                   disabled={shippingLoading || shippingZip.replace(/\D/g, "").length !== 8}
                   onClick={() => fetchShippingQuotes(shippingZip)}
-                  className="shrink-0"
+                  className="shrink-0 px-3"
                 >
                   {shippingLoading ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
-                  {shippingLoading ? "Calculando..." : "Calcular Frete"}
+                  <span className="hidden sm:inline">
+                    {shippingLoading ? "Calculando..." : "Calcular Frete"}
+                  </span>
+                  <span className="sm:hidden">
+                    {shippingLoading ? "..." : "Calcular"}
+                  </span>
                 </Button>
               </div>
 
@@ -504,6 +538,7 @@ export function StoreGrid({
                 </Button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}

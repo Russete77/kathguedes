@@ -233,7 +233,7 @@ export async function approveLoyaltyPhoto(id: string, approved: boolean) {
     .single();
 
   if (!approved) {
-    // Apagar foto + bucket
+    // Rejeição: apagar foto do bucket + linha + notificar usuário pra reenviar
     const { data: fullPhoto } = await supabase
       .from("estetica_loyalty_photos")
       .select("photo_url")
@@ -248,13 +248,22 @@ export async function approveLoyaltyPhoto(id: string, approved: boolean) {
     }
 
     await supabase.from("estetica_loyalty_photos").delete().eq("id", id);
+
+    if (photoRaw?.user_id) {
+      notifyUser(photoRaw.user_id as string, {
+        title: "Foto não aprovada",
+        body: "Sua foto da fidelidade não foi aprovada. Envie outra com a moto bem visível.",
+        icon: "X",
+        url: "/kath-estetica/fidelidade",
+      }).catch(() => {});
+    }
   } else {
     await supabase
       .from("estetica_loyalty_photos")
       .update({ approved: true, approved_at: new Date().toISOString() })
       .eq("id", id);
 
-    // Verificar se atingiu 4 → notificar
+    // Contar aprovações do mês pra decidir entre notif "foto X/3" ou "desbloqueado".
     if (photoRaw?.user_id && photoRaw?.month) {
       const { count } = await supabase
         .from("estetica_loyalty_photos")
@@ -263,11 +272,22 @@ export async function approveLoyaltyPhoto(id: string, approved: boolean) {
         .eq("month", photoRaw.month as string)
         .eq("approved", true);
 
-      if ((count ?? 0) === 4) {
+      const total = count ?? 0;
+
+      if (total >= 3) {
+        // Atingiu a marca (na 3ª foto aprovada, libera a 4ª lavagem grátis)
         notifyUser(photoRaw.user_id as string, {
-          title: "🎉 5ª lavagem desbloqueada!",
+          title: "🎉 4ª lavagem desbloqueada!",
           body: "Parabéns! Sua próxima lavagem deste mês é grátis.",
           icon: "Gift",
+          url: "/kath-estetica/fidelidade",
+        }).catch(() => {});
+      } else {
+        // Notif individual de progresso (1/3, 2/3)
+        notifyUser(photoRaw.user_id as string, {
+          title: "Foto aprovada!",
+          body: `${total}/3 fotos aprovadas este mês. Faltam ${3 - total} para a próxima lavagem grátis.`,
+          icon: "Check",
           url: "/kath-estetica/fidelidade",
         }).catch(() => {});
       }

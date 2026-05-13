@@ -6,7 +6,7 @@ import { CompleteWorkoutButton } from "./complete-button";
 import { Badge } from "@/components/ui/badge";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft, Clock, BarChart2, Target, Dumbbell, Info, Heart,
+  ArrowLeft, Clock, BarChart2, Target, Dumbbell, Info,
 } from "lucide-react";
 import Link from "next/link";
 

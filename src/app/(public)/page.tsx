@@ -22,7 +22,6 @@ import {
   Dumbbell,
   Heart,
   Sparkles,
-  ChevronRight,
 } from "lucide-react";
 
 // Brand icons (removed from lucide-react v1.x)
@@ -409,9 +408,12 @@ function FeaturesSection() {
             </div>
             {/* Mockup do app */}
             <div className="mx-auto lg:mx-0 lg:ml-auto">
-              <img
+              <Image
                 src="/images/app-mockup.jpeg"
                 alt="KathApp treinos em vídeo"
+                width={544}
+                height={818}
+                sizes="280px"
                 className="w-[280px] h-auto rounded-[24px] border border-gray-4 group-hover:border-pink/20 transition-colors duration-500"
               />
             </div>

@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cancelSubscription } from "@/lib/asaas/client";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 /**
  * POST /api/checkout/cancel
@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
  *   - ok: true
  */
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     // 1. Verify auth
     const { userId } = await auth();

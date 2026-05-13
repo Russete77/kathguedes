@@ -18,6 +18,7 @@ import type { Plan } from "@/lib/billing/plans";
 interface SubscribeButtonProps {
   plan: Plan;
   currentPlan: PlanTier;
+  currentCpf: string | null;
   featured?: boolean;
 }
 
@@ -25,27 +26,27 @@ const BILLING_OPTIONS = [
   {
     id: "PIX",
     label: "PIX",
-    description: "Pagamento instantâneo via PIX",
+    description: "Pagamento instantaneo via PIX",
     accentColor: "from-green-500 to-green-600",
     borderColor: "border-green-500/50",
   },
   {
     id: "BOLETO",
     label: "Boleto",
-    description: "Pagamento via boleto bancário (até 3 dias úteis)",
+    description: "Pagamento via boleto bancario (ate 3 dias uteis)",
     accentColor: "from-yellow-500 to-yellow-600",
     borderColor: "border-yellow-500/50",
   },
   {
     id: "CREDIT_CARD",
-    label: "Cartão de Crédito",
-    description: "Aprovação quase imediata",
+    label: "Cartao de Credito",
+    description: "Aprovacao quase imediata",
     accentColor: "from-blue-500 to-blue-600",
     borderColor: "border-blue-500/50",
   },
 ];
 
-type FlowStep = "select-billing" | "awaiting-payment";
+type FlowStep = "collect-cpf" | "select-billing" | "awaiting-payment";
 
 interface PaymentData {
   invoiceUrl: string;
@@ -54,35 +55,59 @@ interface PaymentData {
   pixPayload?: string;
 }
 
+/** Formata CPF (xxx.xxx.xxx-xx) ou CNPJ (xx.xxx.xxx/xxxx-xx) a partir de digitos. */
+function formatCpfCnpj(digits: string): string {
+  const d = digits.replace(/\D/g, "");
+  if (d.length <= 11) {
+    return d
+      .replace(/^(\d{3})(\d)/, "$1.$2")
+      .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1-$2")
+      .slice(0, 14);
+  }
+  return d
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2")
+    .slice(0, 18);
+}
+
+function digitsOnly(v: string): string {
+  return v.replace(/\D/g, "");
+}
+
 export function SubscribeButton({
   plan,
   currentPlan,
+  currentCpf,
   featured,
 }: SubscribeButtonProps) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [step, setStep] = useState<FlowStep>("select-billing");
-  const [selectedBillingType, setSelectedBillingType] =
-    useState<string | null>(null);
+  // Se ja tem CPF salvo, pula direto pro select-billing.
+  const initialStep: FlowStep = currentCpf ? "select-billing" : "collect-cpf";
+  const [step, setStep] = useState<FlowStep>(initialStep);
+  const [cpfInput, setCpfInput] = useState<string>("");
+  const [cpfError, setCpfError] = useState<string | null>(null);
+  const [selectedBillingType, setSelectedBillingType] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [copied, setCopied] = useState(false);
 
   const isCurrent = currentPlan === plan.slug;
-  // Para detectar downgrade precisamos saber o level do plano atual.
-  // Como o caller passa apenas o slug, fazemos lookup via fetch one-time.
-  // Solução pragmática: para slugs conhecidos hardcode os levels (cache local;
-  // se vier slug inesperado, default 0 = free e nunca bloqueia).
   const LEVELS: Record<string, number> = {
     free: 0, acesso: 1, plano1: 2, plano2: 3, plano3: 4, atleta: 5,
   };
   const isDowngrade = (LEVELS[currentPlan] ?? 0) > plan.level;
 
   const resetDialog = () => {
-    setStep("select-billing");
+    setStep(currentCpf ? "select-billing" : "collect-cpf");
     setSelectedBillingType(null);
     setPaymentData(null);
     setCopied(false);
+    setCpfInput("");
+    setCpfError(null);
   };
 
   const handleClose = (open: boolean) => {
@@ -90,20 +115,48 @@ export function SubscribeButton({
     setDialogOpen(open);
   };
 
+  const handleConfirmCpf = () => {
+    const digits = digitsOnly(cpfInput);
+    if (digits.length !== 11 && digits.length !== 14) {
+      setCpfError("CPF (11 digitos) ou CNPJ (14 digitos) invalido.");
+      return;
+    }
+    setCpfError(null);
+    setStep("select-billing");
+  };
+
   const handleSelectBillingType = async (billingType: string) => {
     setSelectedBillingType(billingType);
     setIsLoading(true);
 
     try {
+      const body: { plan: string; billingType: string; cpfCnpj?: string } = {
+        plan: plan.slug,
+        billingType,
+      };
+      // Manda o CPF do input se foi coletado nesta sessao; senao backend usa profile.cpf
+      const cpfDigits = digitsOnly(cpfInput);
+      if (cpfDigits) body.cpfCnpj = cpfDigits;
+
       const response = await fetch("/api/checkout/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: plan.slug, billingType }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Erro ao criar assinatura");
+        // Caso especial: backend disse que CPF e obrigatorio (cpf cache vazio + nao mandamos)
+        if (error?.error === "cpf_required") {
+          setStep("collect-cpf");
+          setCpfError("Precisamos do seu CPF ou CNPJ para continuar.");
+          throw new Error("CPF obrigatorio");
+        }
+        throw new Error(
+          (typeof error?.message === "string" && error.message)
+            || (typeof error?.error === "string" && error.error)
+            || "Erro ao criar assinatura",
+        );
       }
 
       const data = await response.json();
@@ -120,7 +173,7 @@ export function SubscribeButton({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Erro ao criar assinatura. Tente novamente."
+          : "Erro ao criar assinatura. Tente novamente.",
       );
       setSelectedBillingType(null);
     } finally {
@@ -132,7 +185,7 @@ export function SubscribeButton({
     if (paymentData?.pixPayload) {
       await navigator.clipboard.writeText(paymentData.pixPayload);
       setCopied(true);
-      toast.success("Código PIX copiado!");
+      toast.success("Codigo PIX copiado!");
       setTimeout(() => setCopied(false), 3000);
     }
   };
@@ -173,14 +226,67 @@ export function SubscribeButton({
 
       <Dialog open={dialogOpen} onOpenChange={handleClose}>
         <DialogContent className="bg-bg-1 border-gray-4 sm:max-w-md">
+          {step === "collect-cpf" && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-white text-lg">
+                  Informe seu CPF
+                </DialogTitle>
+                <DialogDescription className="text-gray-2">
+                  Necessario para gerar a cobranca da assinatura{" "}
+                  <span className="text-pink font-semibold uppercase">{plan.name}</span>.
+                  Salvamos no seu perfil — voce so digita uma vez.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="py-4">
+                <label className="block text-xs font-mono text-gray-3 mb-2 tracking-wider uppercase">
+                  CPF ou CNPJ
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  autoFocus
+                  placeholder="000.000.000-00"
+                  value={cpfInput}
+                  onChange={(e) => {
+                    setCpfInput(formatCpfCnpj(e.target.value));
+                    setCpfError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleConfirmCpf();
+                  }}
+                  className={`w-full bg-bg-2 border rounded-xl px-4 py-3 text-white placeholder:text-gray-3 outline-none transition-colors ${
+                    cpfError ? "border-danger" : "border-gray-4 focus:border-pink"
+                  }`}
+                />
+                {cpfError && (
+                  <p className="text-xs text-danger mt-2">{cpfError}</p>
+                )}
+                <p className="text-[11px] text-gray-3 mt-3">
+                  Asaas exige CPF/CNPJ para emissao da nota fiscal e antifraude.
+                </p>
+              </div>
+
+              <Button
+                onClick={handleConfirmCpf}
+                disabled={!cpfInput || isLoading}
+                className="w-full"
+              >
+                Continuar
+              </Button>
+            </>
+          )}
+
           {step === "select-billing" && (
             <>
               <DialogHeader>
                 <DialogTitle className="text-white text-lg">
-                  Escolha seu método de pagamento
+                  Escolha seu metodo de pagamento
                 </DialogTitle>
                 <DialogDescription className="text-gray-2">
-                  Selecione como você deseja pagar sua assinatura do plano{" "}
+                  Selecione como voce deseja pagar sua assinatura do plano{" "}
                   <span className="text-pink font-semibold uppercase">
                     {plan.name}
                   </span>
@@ -230,8 +336,8 @@ export function SubscribeButton({
 
               <div className="bg-bg-2/50 border border-gray-4 rounded-lg p-3">
                 <p className="text-xs text-gray-3">
-                  Sua assinatura é mensal e recorrente. O acesso é ativado
-                  após a confirmação do pagamento.
+                  Sua assinatura e mensal e recorrente. O acesso e ativado
+                  apos a confirmacao do pagamento.
                 </p>
               </div>
             </>
@@ -249,19 +355,19 @@ export function SubscribeButton({
                 </DialogTitle>
                 <DialogDescription className="text-gray-2">
                   {paymentData.billingType === "PIX"
-                    ? "Escaneie o QR code ou copie o código PIX para pagar."
+                    ? "Escaneie o QR code ou copie o codigo PIX para pagar."
                     : paymentData.billingType === "BOLETO"
                     ? "Acesse o link abaixo para visualizar e pagar o boleto."
-                    : "Clique no botão abaixo para inserir os dados do cartão."}
+                    : "Clique no botao abaixo para inserir os dados do cartao."}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-4">
-                {/* PIX QR Code */}
                 {paymentData.billingType === "PIX" &&
                   paymentData.pixQrCode && (
                     <div className="flex flex-col items-center gap-4">
                       <div className="bg-white rounded-2xl p-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={`data:image/png;base64,${paymentData.pixQrCode}`}
                           alt="QR Code PIX"
@@ -277,12 +383,12 @@ export function SubscribeButton({
                           {copied ? (
                             <>
                               <Check size={16} className="text-green-500" />
-                              Código copiado!
+                              Codigo copiado!
                             </>
                           ) : (
                             <>
                               <Copy size={16} className="text-gray-3" />
-                              Copiar código PIX (copia e cola)
+                              Copiar codigo PIX (copia e cola)
                             </>
                           )}
                         </button>
@@ -290,7 +396,6 @@ export function SubscribeButton({
                     </div>
                   )}
 
-                {/* PIX sem QR code — fallback para invoiceUrl */}
                 {paymentData.billingType === "PIX" &&
                   !paymentData.pixQrCode &&
                   paymentData.invoiceUrl && (
@@ -304,7 +409,6 @@ export function SubscribeButton({
                     </div>
                   )}
 
-                {/* Boleto / Card */}
                 {paymentData.billingType !== "PIX" && (
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-20 h-20 bg-bg-2 rounded-full flex items-center justify-center border border-gray-4">
@@ -313,12 +417,11 @@ export function SubscribeButton({
                     <p className="text-sm text-gray-2 text-center">
                       {paymentData.billingType === "BOLETO"
                         ? "Clique abaixo para visualizar o boleto."
-                        : "Clique abaixo para inserir os dados do seu cartão com segurança."}
+                        : "Clique abaixo para inserir os dados do seu cartao com seguranca."}
                     </p>
                   </div>
                 )}
 
-                {/* Invoice URL button */}
                 {paymentData.invoiceUrl && (
                   <button
                     onClick={handleOpenInvoice}
@@ -326,27 +429,27 @@ export function SubscribeButton({
                   >
                     <ExternalLink size={16} />
                     {paymentData.billingType === "PIX"
-                      ? "Abrir página de pagamento"
+                      ? "Abrir pagina de pagamento"
                       : paymentData.billingType === "BOLETO"
                       ? "Visualizar boleto"
-                      : "Inserir dados do cartão"}
+                      : "Inserir dados do cartao"}
                   </button>
                 )}
               </div>
 
               <div className="bg-bg-2/50 border border-gray-4 rounded-lg p-3 space-y-2">
                 <p className="text-xs text-gray-3">
-                  Seu plano será ativado automaticamente após a
-                  confirmação do pagamento.
+                  Seu plano sera ativado automaticamente apos a
+                  confirmacao do pagamento.
                   {plan.slug === "atleta" &&
-                    " Você terá acesso imediato à consultoria e ficha de anamnese."}
+                    " Voce tera acesso imediato a consultoria e ficha de anamnese."}
                 </p>
                 <p className="text-xs text-gray-3">
                   {paymentData.billingType === "PIX"
-                    ? "PIX é confirmado em poucos segundos."
+                    ? "PIX e confirmado em poucos segundos."
                     : paymentData.billingType === "BOLETO"
-                    ? "Boleto pode levar até 3 dias úteis para compensar."
-                    : "Cartão de crédito é aprovado quase imediatamente."}
+                    ? "Boleto pode levar ate 3 dias uteis para compensar."
+                    : "Cartao de credito e aprovado quase imediatamente."}
                 </p>
               </div>
 
@@ -357,7 +460,7 @@ export function SubscribeButton({
                 }}
                 className="text-sm text-gray-3 hover:text-gray-1 transition-colors text-center py-2"
               >
-                Já paguei — atualizar página
+                Ja paguei — atualizar pagina
               </button>
             </>
           )}

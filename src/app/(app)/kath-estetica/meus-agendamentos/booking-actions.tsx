@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Copy, Loader2, QrCode, Camera, Check } from "lucide-react";
+import { Copy, Loader2, QrCode, Camera, Check, Image as ImageIcon } from "lucide-react";
 import type { EsteticaBooking } from "@/lib/estetica/types";
 
 interface Props {
@@ -111,7 +111,7 @@ export function BookingActions({ booking }: Props) {
     );
   }
 
-  // Done → botão upload de foto pra fidelidade
+  // Done → enviar foto pra fidelidade (câmera direta ou galeria)
   if (booking.status === "done") {
     return (
       <div className="pt-3 border-t border-gray-4">
@@ -120,27 +120,47 @@ export function BookingActions({ booking }: Props) {
             <Check size={14} />
             Foto enviada — aguardando aprovação
           </div>
+        ) : photoUploading ? (
+          <div className="flex items-center justify-center gap-2 w-full bg-bg-2 border border-dashed border-pink/40 rounded-[14px] py-4 text-pink text-sm font-semibold">
+            <Loader2 size={16} className="animate-spin" />
+            Enviando...
+          </div>
         ) : (
-          <label className="flex items-center justify-center gap-2 w-full bg-bg-2 border border-dashed border-pink/40 rounded-[14px] py-4 text-pink text-sm font-semibold cursor-pointer hover:bg-pink/5 transition-colors">
-            {photoUploading ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Enviando...
-              </>
-            ) : (
-              <>
+          <div className="space-y-2">
+            <p className="text-[11px] text-gray-3 font-mono tracking-[0.1em] uppercase">
+              Enviar foto pra fidelidade
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {/* Câmera (mobile abre direto na câmera traseira) */}
+              <label className="flex items-center justify-center gap-2 bg-pink hover:bg-pink-light text-white text-[13px] font-semibold rounded-[14px] py-3 cursor-pointer transition-colors">
                 <Camera size={16} />
-                Enviar foto pra fidelidade
-              </>
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handlePhotoUpload}
-              disabled={photoUploading}
-            />
-          </label>
+                Tirar foto
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                  disabled={photoUploading}
+                />
+              </label>
+              {/* Galeria (escolher arquivo existente) */}
+              <label className="flex items-center justify-center gap-2 bg-bg-2 border border-gray-4 hover:border-pink/40 text-gray-1 text-[13px] font-semibold rounded-[14px] py-3 cursor-pointer transition-colors">
+                <ImageIcon size={16} />
+                Galeria
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                  disabled={photoUploading}
+                />
+              </label>
+            </div>
+            <p className="text-[10px] text-gray-3 text-center">
+              A foto vai pra aprovação da Kath antes de contar no programa.
+            </p>
+          </div>
         )}
       </div>
     );

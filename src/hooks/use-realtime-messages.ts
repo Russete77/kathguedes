@@ -74,6 +74,15 @@ export function useRealtimeMessages(userId: string) {
       sender_role: "user",
     });
     if (error) throw new Error(error.message);
+
+    // Notificar admins (fire-and-forget — não bloqueia UX).
+    // Mantém o insert via Supabase JS pra preservar o realtime; só dispara
+    // o push em paralelo via API route.
+    fetch("/api/chat/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    }).catch(() => {});
   }
 
   return { messages, loading, sendMessage };

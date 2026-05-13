@@ -3,6 +3,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AffiliateCard } from "@/components/affiliates/affiliate-card";
 import { ShoppingBag } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Produtos Recomendados",
   description: "Produtos recomendados pela Kath Guedes — fitness, moto, estética automotiva e acessórios com link direto para compra.",

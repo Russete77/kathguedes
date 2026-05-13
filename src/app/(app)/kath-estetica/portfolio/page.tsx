@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import type { EsteticaPortfolioItem } from "@/lib/estetica/types";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Portfólio Antes & Depois — Kath Estética Moto",
   description:

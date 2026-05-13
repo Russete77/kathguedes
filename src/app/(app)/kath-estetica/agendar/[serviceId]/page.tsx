@@ -44,7 +44,7 @@ export default async function AgendarPage({ params }: Props) {
     getWalletActiveCents(userId!),
   ]);
 
-  // Verificar elegibilidade fidelidade (4 fotos aprovadas no mês atual)
+  // Verificar elegibilidade fidelidade (3 fotos aprovadas no mês atual)
   const currentMonth = new Date().toISOString().slice(0, 7);
   const { count: approvedCount } = await supabase
     .from("estetica_loyalty_photos")
@@ -65,7 +65,7 @@ export default async function AgendarPage({ params }: Props) {
 
   const loyaltyEligible =
     service.eligible_for_loyalty &&
-    (approvedCount ?? 0) >= 4 &&
+    (approvedCount ?? 0) >= 3 &&
     (!alreadyUsedRaw || alreadyUsedRaw.length === 0);
 
   return (

@@ -42,6 +42,7 @@ type ProfileFields = {
   full_name: string;
   avatar_url: string | null;
   phone: string | null;
+  cpf: string | null;
   plan_tier: PlanTier;
   asaas_customer_id: string | null;
   asaas_subscription_id: string | null;

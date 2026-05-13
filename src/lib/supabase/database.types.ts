@@ -555,6 +555,7 @@ export type Database = {
           asaas_customer_id: string | null
           asaas_subscription_id: string | null
           avatar_url: string | null
+          cpf: string | null
           created_at: string
           full_name: string
           id: string
@@ -571,6 +572,7 @@ export type Database = {
           asaas_customer_id?: string | null
           asaas_subscription_id?: string | null
           avatar_url?: string | null
+          cpf?: string | null
           created_at?: string
           full_name: string
           id: string
@@ -587,6 +589,7 @@ export type Database = {
           asaas_customer_id?: string | null
           asaas_subscription_id?: string | null
           avatar_url?: string | null
+          cpf?: string | null
           created_at?: string
           full_name?: string
           id?: string

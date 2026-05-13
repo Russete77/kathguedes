@@ -8,6 +8,7 @@ import { type EsteticaService, finalPriceCents } from "@/lib/estetica/types";
 import { getEsteticaDiscountPct } from "@/lib/billing/plans";
 import { getWalletActiveCents, spendWalletCents } from "@/lib/billing/wallet";
 import { clampCashbackCents, computeAmountPaidCash } from "@/lib/billing/cashback-utils";
+import { notifyAdmins } from "@/lib/notifications";
 import type { PlanTier } from "@/lib/supabase/types";
 
 const bookingSchema = z.object({
@@ -176,11 +177,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Notificar admins (fire-and-forget — não bloqueia a resposta ao cliente).
+    const scheduledLabel = new Date(body.scheduled_at).toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const bookingStatusLabel =
+      totalCents === 0 ? "(grátis, já confirmado)" : "(aguardando pagamento)";
+    notifyAdmins({
+      title: "Novo agendamento na estética",
+      body: `${service.title} — ${body.customer_name} em ${scheduledLabel} ${bookingStatusLabel}`,
+      icon: "Calendar",
+      url: "/admin/kath-estetica/agendamentos",
+    }).catch((err) => {
+      console.error("[estetica/bookings] notifyAdmins failed", err);
+    });
+
     return NextResponse.json({
-      bookingId: booking.id,
-      loyaltyUsed: loyaltyFree,
+      ok: true,
+      booking_id: booking.id,
+      status: totalCents === 0 ? "confirmed" : "pending",
       total_cents: totalCents,
-      cashback_used_cents: cashbackUsedCents,
     });
   } catch (err) {
     return handleApiError(err, "POST /api/estetica/bookings");

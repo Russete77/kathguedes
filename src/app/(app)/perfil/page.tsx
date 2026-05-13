@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/sup
 import { StreakBadge } from "@/components/fitness/streak-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Crown,
@@ -71,7 +72,13 @@ export default async function PerfilPage() {
         <div className="relative z-10">
           <div className="w-20 h-20 rounded-full bg-bg-3 border-2 border-pink mx-auto mb-4 flex items-center justify-center overflow-hidden">
             {user?.imageUrl ? (
-              <img src={user.imageUrl} alt="" className="w-full h-full object-cover" />
+              <Image
+                src={user.imageUrl}
+                alt=""
+                width={80}
+                height={80}
+                className="w-full h-full object-cover"
+              />
             ) : (
               <span className="font-display text-[32px] text-pink">
                 {(user?.firstName?.[0] || "K").toUpperCase()}

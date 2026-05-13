@@ -100,6 +100,23 @@ export async function getCustomer(
   return asaasRequest<AsaasCustomer>(`/customers/${customerId}`);
 }
 
+/**
+ * Atualiza um customer existente no Asaas (PUT /customers/:id).
+ * Usado para preencher CPF/CNPJ em customers criados antes de coletarmos o documento.
+ */
+interface UpdateCustomerParams {
+  name?: string;
+  email?: string;
+  cpfCnpj?: string;
+}
+
+export async function updateCustomer(
+  customerId: string,
+  params: UpdateCustomerParams,
+): Promise<AsaasCustomer> {
+  return asaasRequest<AsaasCustomer>(`/customers/${customerId}`, "PUT", params);
+}
+
 // ── Subscriptions ──
 
 interface CreateSubscriptionParams {

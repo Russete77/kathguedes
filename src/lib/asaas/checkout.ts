@@ -1,5 +1,6 @@
 import {
   createCustomer,
+  updateCustomer,
   createSubscription,
   getSubscriptionPayments,
   getPaymentPixQrCode,
@@ -22,6 +23,7 @@ interface CheckoutParams {
   userId: string; // Clerk user ID
   fullName: string;
   email: string;
+  cpfCnpj: string; // somente digitos (11 CPF, 14 CNPJ) — obrigatorio Asaas
   plan: Exclude<PlanTier, "free">;
   billingType: "BOLETO" | "CREDIT_CARD" | "PIX";
 }
@@ -38,7 +40,7 @@ interface CheckoutResult {
 export async function processCheckout(
   params: CheckoutParams
 ): Promise<CheckoutResult> {
-  const { userId, fullName, email, plan, billingType } = params;
+  const { userId, fullName, email, cpfCnpj, plan, billingType } = params;
   const supabase = createAdminSupabaseClient();
 
   // 0. Resolver plano (preço + descrição vêm da tabela `plans`, admin-editável)
@@ -50,24 +52,41 @@ export async function processCheckout(
   // 1. Verificar se já tem customer no Asaas
   const { data: profile } = await supabase
     .from("profiles")
-    .select("asaas_customer_id")
+    .select("asaas_customer_id, cpf")
     .eq("id", userId)
     .single();
 
-  let customerId = profile?.asaas_customer_id;
+  type ProfileRow = { asaas_customer_id: string | null; cpf: string | null };
+  const profileRow = profile as ProfileRow | null;
+  let customerId = profileRow?.asaas_customer_id ?? null;
 
-  // 2. Criar customer se não existe
   if (!customerId) {
+    // 2a. Criar customer novo (CPF obrigatorio Asaas)
     const customer = await createCustomer({
       name: fullName,
       email,
+      cpfCnpj,
     });
     customerId = customer.id;
 
-    // Salvar no profile
     await supabase
       .from("profiles")
-      .update({ asaas_customer_id: customerId })
+      .update({ asaas_customer_id: customerId, cpf: cpfCnpj })
+      .eq("id", userId);
+  } else {
+    // 2b. Customer ja existe — garantir IDEMPOTENTEMENTE que tem CPF correto.
+    // Sempre fazemos PUT, sem condicional, porque profile.cpf no Supabase
+    // pode estar dessincronizado do customer no Asaas (caso classico: profile
+    // foi atualizado em tentativa anterior mas o PUT no Asaas falhou).
+    // 1 request extra por checkout vale o trade-off vs nao bater.
+    await updateCustomer(customerId, {
+      name: fullName,
+      email,
+      cpfCnpj,
+    });
+    await supabase
+      .from("profiles")
+      .update({ cpf: cpfCnpj })
       .eq("id", userId);
   }
 

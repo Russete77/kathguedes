@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   ClipboardList,
   ChevronDown,
-  User,
   Target,
   Dumbbell,
   UtensilsCrossed,

@@ -17,8 +17,6 @@ import {
   X,
   Dumbbell,
   Apple,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 

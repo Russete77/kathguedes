@@ -206,7 +206,9 @@ export async function createLalamoveOrder(params: {
   recipientPhone: string;
   quotationId: string;
 }): Promise<{ order_id: string; tracking_url: string }> {
-  const origin = getOriginAddress();
+  // Origin não usado neste endpoint (Lalamove guarda no quotation_id).
+  // Mantido por simetria com createEntrega99Order; remover quando refactorar.
+  void getOriginAddress;
 
   const result = await lalamoveRequest<{
     data: { orderRef: string; shareLink: string };

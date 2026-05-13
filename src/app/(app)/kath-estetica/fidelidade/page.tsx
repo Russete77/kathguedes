@@ -5,11 +5,12 @@ import { auth } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Gift, Check, Clock, Camera } from "lucide-react";
-import type { EsteticaLoyaltyPhoto } from "@/lib/estetica/types";
+import type { EsteticaLoyaltyPhoto, EsteticaBooking, EsteticaService } from "@/lib/estetica/types";
+import { LoyaltyPhotoUpload } from "./loyalty-photo-upload";
 
 export const metadata: Metadata = {
   title: "Programa de Fidelidade — Kath Estética",
-  description: "4 lavagens com foto aprovada no mês → 5ª grátis.",
+  description: "3 lavagens com foto aprovada no mês → 4ª grátis.",
 };
 
 export default async function FidelidadePage() {
@@ -32,7 +33,26 @@ export default async function FidelidadePage() {
   const photos = (photosRaw || []) as unknown as EsteticaLoyaltyPhoto[];
   const approved = photos.filter((p) => p.approved).length;
   const pending = photos.filter((p) => !p.approved).length;
-  const unlocked = approved >= 4;
+  const unlocked = approved >= 3;
+
+  // Agendamentos concluídos do mês que AINDA NÃO TÊM foto enviada
+  const bookingIdsWithPhoto = new Set(photos.map((p) => p.booking_id));
+  const startOfMonth = `${currentMonth}-01T00:00:00Z`;
+  const { data: doneBookingsRaw } = await supabase
+    .from("estetica_bookings")
+    .select("*, service:estetica_services(title, category)")
+    .eq("user_id", userId!)
+    .eq("status", "done")
+    .gte("scheduled_at", startOfMonth)
+    .order("scheduled_at", { ascending: false });
+
+  type BookingWithService = EsteticaBooking & {
+    service: Pick<EsteticaService, "title" | "category"> | null;
+  };
+  const doneBookings = (doneBookingsRaw || []) as unknown as BookingWithService[];
+  const bookingsNeedingPhoto = doneBookings.filter(
+    (b) => !bookingIdsWithPhoto.has(b.id),
+  );
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
@@ -50,7 +70,7 @@ export default async function FidelidadePage() {
           PROGRAMA FIDELIDADE
         </Badge>
         <h1 className="font-display text-4xl text-white">
-          4 LAVAGENS = <span className="text-pink">5ª GRÁTIS</span>
+          3 LAVAGENS = <span className="text-pink">4ª GRÁTIS</span>
         </h1>
         <p className="text-gray-2 text-sm mt-1 capitalize">
           Progresso de {monthLabel}.
@@ -64,11 +84,11 @@ export default async function FidelidadePage() {
             Progresso do mês
           </span>
           <span className="font-display text-2xl text-pink">
-            {Math.min(approved, 4)}/4
+            {Math.min(approved, 3)}/3
           </span>
         </div>
         <div className="flex items-center gap-2 mb-4">
-          {[1, 2, 3, 4].map((n) => (
+          {[1, 2, 3].map((n) => (
             <div
               key={n}
               className={`flex-1 h-12 rounded-[10px] flex items-center justify-center font-display text-xl border transition-all ${
@@ -94,7 +114,7 @@ export default async function FidelidadePage() {
         {unlocked ? (
           <div className="bg-pink/10 border border-pink/40 rounded-[14px] p-4 text-center">
             <div className="font-display text-2xl text-white mb-1">
-              🎉 5ª LAVAGEM DESBLOQUEADA!
+              🎉 4ª LAVAGEM DESBLOQUEADA!
             </div>
             <p className="text-gray-2 text-sm mb-3">
               No próximo agendamento deste mês, marque a opção &quot;Usar benefício fidelidade&quot; e pague R$0.
@@ -108,7 +128,7 @@ export default async function FidelidadePage() {
           </div>
         ) : (
           <p className="text-gray-2 text-sm text-center">
-            Faltam <strong className="text-pink">{4 - approved}</strong> fotos aprovadas pra liberar a 5ª grátis.
+            Faltam <strong className="text-pink">{3 - approved}</strong> fotos aprovadas pra liberar a 4ª grátis.
             {pending > 0 && (
               <span className="block text-yellow text-xs mt-1">
                 {pending} foto(s) aguardando aprovação da Kath.
@@ -117,6 +137,55 @@ export default async function FidelidadePage() {
           </p>
         )}
       </div>
+
+      {/* Agendamentos prontos pra enviar foto */}
+      {bookingsNeedingPhoto.length > 0 && (
+        <div className="bg-bg-1 border border-pink/30 rounded-[22px] p-6 space-y-4">
+          <div>
+            <Badge variant="pink" className="mb-2">
+              <Camera size={12} />
+              ENVIAR FOTOS
+            </Badge>
+            <h2 className="font-display text-xl text-white">
+              {bookingsNeedingPhoto.length} agendamento{bookingsNeedingPhoto.length > 1 ? "s" : ""} pronto{bookingsNeedingPhoto.length > 1 ? "s" : ""} pra foto
+            </h2>
+            <p className="text-gray-2 text-sm mt-1">
+              Envie a foto da sua moto após a lavagem. A Kath aprova e conta no programa.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {bookingsNeedingPhoto.map((b) => (
+              <div
+                key={b.id}
+                className="bg-bg-2 border border-gray-4 rounded-[14px] p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-display text-[16px] text-white leading-tight truncate">
+                      {b.service?.title || "Serviço"}
+                    </div>
+                    <div className="text-[12px] text-gray-3 mt-1">
+                      {new Date(b.scheduled_at).toLocaleDateString("pt-BR", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                      {" · "}
+                      {b.vehicle_brand} {b.vehicle_model}
+                    </div>
+                  </div>
+                  <Badge variant="green" className="shrink-0">
+                    Concluído
+                  </Badge>
+          
+                </div>
+                <LoyaltyPhotoUpload bookingId={b.id} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Como funciona */}
       <div className="bg-bg-1 border border-gray-4 rounded-[22px] p-6">
@@ -128,7 +197,7 @@ export default async function FidelidadePage() {
           </li>
           <li className="flex gap-3">
             <span className="font-display text-pink text-xl leading-none">2.</span>
-            Em &quot;Meus Agendamentos&quot;, envie uma foto da sua moto lavada.
+            Após o serviço, envie uma foto da sua moto lavada aqui mesmo ou em &quot;Meus Agendamentos&quot;.
           </li>
           <li className="flex gap-3">
             <span className="font-display text-pink text-xl leading-none">3.</span>
@@ -136,7 +205,7 @@ export default async function FidelidadePage() {
           </li>
           <li className="flex gap-3">
             <span className="font-display text-pink text-xl leading-none">4.</span>
-            Ao atingir 4 fotos aprovadas no mesmo mês, a 5ª lavagem sai grátis.
+            Ao atingir 3 fotos aprovadas no mesmo mês, a 4ª lavagem sai grátis.
           </li>
           <li className="flex gap-3">
             <span className="font-display text-pink text-xl leading-none">5.</span>
@@ -181,7 +250,7 @@ export default async function FidelidadePage() {
         </div>
       )}
 
-      {photos.length === 0 && (
+      {photos.length === 0 && bookingsNeedingPhoto.length === 0 && (
         <div className="text-center py-12 bg-bg-1 border border-gray-4 rounded-[22px]">
           <Camera size={40} className="stroke-gray-3 mx-auto mb-3" />
           <p className="text-gray-2 text-sm">

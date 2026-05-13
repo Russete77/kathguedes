@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
  * DELETE /api/push/subscribe
  * Remove push subscription.
  */
-export async function DELETE(_req: NextRequest) {
+export async function DELETE() {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });

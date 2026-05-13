@@ -11,7 +11,7 @@ export default async function AdminEsteticaLoyaltyPage() {
       <div>
         <h1 className="font-display text-4xl text-white">FIDELIDADE</h1>
         <p className="text-gray-2 text-sm mt-1">
-          Aprove as fotos que contam no programa 4 → 5ª lavagem grátis.
+          Aprove as fotos que contam no programa 3 → 4ª lavagem grátis.
         </p>
       </div>
       <LoyaltyApprovalList photos={photos as unknown as PhotoRow[]} />

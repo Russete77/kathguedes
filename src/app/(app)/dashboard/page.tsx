@@ -3,7 +3,6 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { StreakBadge } from "@/components/fitness/streak-badge";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import {
   PlayCircle,
@@ -11,7 +10,6 @@ import {
   Calculator,
   Tag,
   ShoppingBag,
-  MessageCircle,
   Flame,
   ArrowRight,
   Crown,
