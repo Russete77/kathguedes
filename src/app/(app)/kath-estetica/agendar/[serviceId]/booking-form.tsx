@@ -12,6 +12,7 @@ import {
 } from "@/lib/estetica/types";
 import type { ServicePricing } from "@/lib/estetica/pricing-types";
 import CashbackInput from "@/components/billing/cashback-input";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 
 interface Props {
   service: EsteticaService;
@@ -206,14 +207,33 @@ export function BookingForm({
 
       {/* Data + Horário lado a lado no mobile */}
       <Section icon={<Calendar size={14} className="stroke-pink" />} title="QUANDO">
-        <input
-          type="date"
-          required
-          min={todayStr}
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="w-full bg-bg-2 border border-gray-4 rounded-[8px] text-white text-[14px] px-3 py-2.5 outline-none focus:border-pink"
-        />
+        <div className="bg-bg-2 border border-gray-4 rounded-[12px] flex justify-center overflow-hidden">
+          <CalendarPicker
+            mode="single"
+            selected={date ? new Date(date + "T12:00:00") : undefined}
+            onSelect={(d) => {
+              if (!d) {
+                setDate("");
+                return;
+              }
+              // Formato YYYY-MM-DD em hora local (sem TZ shift)
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              setDate(`${y}-${m}-${day}`);
+            }}
+            disabled={{ before: new Date(todayStr + "T00:00:00") }}
+          />
+        </div>
+        {date && (
+          <p className="text-[11px] text-gray-3 mt-1.5 font-mono">
+            {new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+            })}
+          </p>
+        )}
       </Section>
 
       {/* Slots */}

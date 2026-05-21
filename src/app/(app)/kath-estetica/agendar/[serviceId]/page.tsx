@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -38,6 +38,11 @@ export default async function AgendarPage({ params }: Props) {
 
   if (!serviceRaw) notFound();
   const service = serviceRaw as unknown as EsteticaService;
+
+  // Lavagem simples e outros serviços walk-in only não passam por agendamento.
+  if (service.requires_booking === false) {
+    redirect(`/kath-estetica/servicos/${service.id}`);
+  }
   const planTier = ((profile?.plan_tier as string) || "free") as PlanTier;
 
   const [discountPct, activeCashbackCents, pricing] = await Promise.all([

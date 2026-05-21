@@ -74,6 +74,14 @@ export async function POST(req: NextRequest) {
     }
     const service = serviceRaw as unknown as EsteticaService;
 
+    // Bloquear bookings para serviços walk-in only (lavagem simples).
+    if (service.requires_booking === false) {
+      return NextResponse.json(
+        { error: "Este servico nao aceita agendamento. Passe na loja." },
+        { status: 400 },
+      );
+    }
+
     // Profile + tier
     const { data: profile } = await supabase
       .from("profiles")

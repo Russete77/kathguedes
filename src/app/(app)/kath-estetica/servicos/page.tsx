@@ -4,7 +4,7 @@ import Image from "next/image";
 import { auth } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
-import { Droplets, Clock, Check } from "lucide-react";
+import { Droplets, Clock, Check, MapPin } from "lucide-react";
 import {
   type EsteticaService,
   finalPriceCents,
@@ -58,6 +58,7 @@ export default async function ServicosPage() {
           {services.map((s) => {
             const finalCents = finalPriceCents(s, discountPct);
             const disc = discountPct;
+            const walkinOnly = s.requires_booking === false;
             return (
               <Link
                 key={s.id}
@@ -96,7 +97,7 @@ export default async function ServicosPage() {
                       {s.description}
                     </p>
                   )}
-                  <div className="flex items-center gap-3 text-[11px] text-gray-3 mb-3">
+                  <div className="flex items-center gap-3 text-[11px] text-gray-3 mb-3 flex-wrap">
                     <span className="flex items-center gap-1">
                       <Clock size={11} />
                       {s.duration_min} min
@@ -105,6 +106,12 @@ export default async function ServicosPage() {
                       <span className="flex items-center gap-1 text-pink">
                         <Check size={11} />
                         Conta na fidelidade
+                      </span>
+                    )}
+                    {walkinOnly && (
+                      <span className="flex items-center gap-1 text-yellow">
+                        <MapPin size={11} />
+                        Sem agendamento · loja
                       </span>
                     )}
                   </div>

@@ -156,6 +156,7 @@ export default async function PerfilPage() {
       <div className="bg-bg-1 border border-gray-4 rounded-[14px] overflow-hidden">
         <MenuLink href="/consultoria" icon={<BarChart2 size={18} />} label="Minha Consultoria" />
         <MenuLink href="/chat" icon={<Bell size={18} />} label="Chat VIP" />
+        <MenuLink href="/perfil/notificacoes" icon={<Bell size={18} />} label="Notificações" />
         <MenuLink href="/planos" icon={<Crown size={18} />} label="Planos e Preços" />
         <MenuLink href="/calculadora" icon={<Settings size={18} />} label="Calculadora de Macros" last />
       </div>

@@ -9,9 +9,13 @@ import type { PlanTier } from "@/lib/supabase/types";
 import { getCashbackPct } from "@/lib/billing/plans";
 import { creditWalletCents } from "@/lib/billing/wallet";
 import { parsePlate } from "@/lib/estetica/plates";
-import { getServicePricing } from "@/lib/estetica/pricing";
-import type { ServicePricing } from "@/lib/estetica/pricing-types";
+import { getServicePricing, listVehicleTypes } from "@/lib/estetica/pricing";
+import type {
+  EsteticaVehicleType,
+  ServicePricing,
+} from "@/lib/estetica/pricing-types";
 import { recordRevenueStream } from "@/lib/billing/revenue";
+import { z } from "zod";
 import type {
   EsteticaCustomerRow,
   EsteticaVehicleRow,
@@ -809,4 +813,139 @@ export async function listRecentWalkins(limit: number = 30): Promise<Array<{
     status: r.status,
     created_at: r.created_at,
   }));
+}
+
+// ══════════════════════════════════════════
+// PRICING MATRIX (matriz + regras de pagamento)
+// ══════════════════════════════════════════
+
+const pricingSchema = z.object({
+  service_id: z.string().uuid(),
+  prices: z
+    .array(
+      z.object({
+        vehicle_type_id: z.string().uuid(),
+        price_cents: z.coerce.number().int().min(0).max(10_000_000),
+      }),
+    )
+    .max(50),
+  payment_rule: z
+    .object({
+      allow_onsite_cash: z.coerce.boolean().default(true),
+      allow_onsite_pix: z.coerce.boolean().default(true),
+      allow_onsite_card: z.coerce.boolean().default(true),
+      allow_app_prepay: z.coerce.boolean().default(true),
+      require_app_prepay: z.coerce.boolean().default(false),
+      prepay_pct: z.coerce.number().int().min(0).max(100).default(0),
+      notes: z.string().max(500).nullable().optional(),
+    })
+    .nullable(),
+});
+
+export type ServicePricingInput = z.infer<typeof pricingSchema>;
+
+/**
+ * Carrega tudo que a página /admin/kath-estetica/precos precisa:
+ * serviços ativos, tipos de moto ativos e (por serviço) matriz + rule.
+ */
+export async function getPricingMatrixData(): Promise<{
+  services: Array<{
+    id: string;
+    title: string;
+    category: string;
+    duration_min: number;
+    slug: string | null;
+    is_active: boolean;
+  }>;
+  vehicleTypes: EsteticaVehicleType[];
+  pricingByService: Record<string, ServicePricing>;
+}> {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+
+  const { data: servicesRaw, error: servicesErr } = await supabase
+    .from("estetica_services")
+    .select("id, title, category, duration_min, slug, is_active")
+    .order("sort_order", { ascending: true });
+  if (servicesErr) throw new Error(servicesErr.message);
+
+  const services = (servicesRaw ?? []) as unknown as Array<{
+    id: string;
+    title: string;
+    category: string;
+    duration_min: number;
+    slug: string | null;
+    is_active: boolean;
+  }>;
+
+  const vehicleTypes = await listVehicleTypes();
+
+  // Carrega pricing em paralelo. Lista pequena (<10 serviços), N+1 aceitável.
+  const pairs = await Promise.all(
+    services.map(async (s) => [s.id, await getServicePricing(s.id)] as const),
+  );
+  const pricingByService: Record<string, ServicePricing> = {};
+  for (const [id, pricing] of pairs) pricingByService[id] = pricing;
+
+  return { services, vehicleTypes, pricingByService };
+}
+
+/**
+ * Persiste a matriz de preços de UM serviço + sua regra de pagamento.
+ * Estratégia transacional simples (sem RPC): aplica em ordem upsert prices
+ * → delete missing → upsert rule. Se falha no meio, o caller chama de novo.
+ */
+export async function saveServicePricing(input: ServicePricingInput) {
+  await requireAdmin();
+  const data = pricingSchema.parse(input);
+  const supabase = createAdminSupabaseClient();
+
+  // 1. Upsert dos preços enviados (cada linha service × vehicle_type)
+  if (data.prices.length > 0) {
+    const rows = data.prices.map((p) => ({
+      service_id: data.service_id,
+      vehicle_type_id: p.vehicle_type_id,
+      price_cents: p.price_cents,
+      is_active: true,
+    }));
+    const { error: upErr } = await supabase
+      .from("estetica_service_prices" as never)
+      .upsert(rows as never, { onConflict: "service_id,vehicle_type_id" });
+    if (upErr) throw new Error(`prices upsert: ${upErr.message}`);
+  }
+
+  // 2. Apaga prices de tipos que NÃO foram enviados (admin removeu da matriz)
+  const keepIds = data.prices.map((p) => p.vehicle_type_id);
+  const delQuery = supabase
+    .from("estetica_service_prices" as never)
+    .delete()
+    .eq("service_id" as never, data.service_id);
+  const { error: delErr } =
+    keepIds.length > 0
+      ? await delQuery.not("vehicle_type_id", "in", `(${keepIds.join(",")})`)
+      : await delQuery;
+  if (delErr) throw new Error(`prices delete: ${delErr.message}`);
+
+  // 3. Upsert da regra de pagamento (nullable — se null, remove)
+  if (data.payment_rule) {
+    const { error: ruleErr } = await supabase
+      .from("estetica_payment_rules" as never)
+      .upsert(
+        {
+          service_id: data.service_id,
+          ...data.payment_rule,
+        } as never,
+        { onConflict: "service_id" },
+      );
+    if (ruleErr) throw new Error(`rule upsert: ${ruleErr.message}`);
+  } else {
+    const { error: ruleDelErr } = await supabase
+      .from("estetica_payment_rules" as never)
+      .delete()
+      .eq("service_id" as never, data.service_id);
+    if (ruleDelErr) throw new Error(`rule delete: ${ruleDelErr.message}`);
+  }
+
+  revalidatePath("/admin/kath-estetica/precos");
+  return { ok: true };
 }

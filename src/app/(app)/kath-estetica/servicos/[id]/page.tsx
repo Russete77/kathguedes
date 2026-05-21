@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock, Check, Droplets, Calendar } from "lucide-react";
+import { ArrowLeft, Clock, Check, Droplets, Calendar, MapPin } from "lucide-react";
 import {
   type EsteticaService,
   finalPriceCents,
@@ -118,13 +118,27 @@ export default async function ServicoDetailPage({ params }: Props) {
           </div>
 
           {/* CTA desktop (inline no grid) */}
-          <Link
-            href={`/kath-estetica/agendar/${service.id}`}
-            className="hidden lg:inline-flex mt-6 items-center justify-center gap-2 w-full font-body font-semibold text-base px-7 py-4 bg-pink text-white rounded-full shadow-pink hover:bg-pink-light transition-all"
-          >
-            <Calendar size={18} />
-            Agendar agora
-          </Link>
+          {service.requires_booking === false ? (
+            <div className="hidden lg:flex mt-6 items-start gap-3 p-4 bg-bg-1 border border-yellow/40 rounded-[14px]">
+              <MapPin size={18} className="stroke-yellow shrink-0 mt-0.5" />
+              <div className="text-[13px]">
+                <div className="font-semibold text-yellow">Atendimento por ordem de chegada</div>
+                <p className="text-gray-2 mt-1">
+                  Este serviço não precisa de agendamento. Passe na loja —
+                  Volcano Garage, Estrada Coronel Pedro Corrêa 93, Barra
+                  Olímpica.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <Link
+              href={`/kath-estetica/agendar/${service.id}`}
+              className="hidden lg:inline-flex mt-6 items-center justify-center gap-2 w-full font-body font-semibold text-base px-7 py-4 bg-pink text-white rounded-full shadow-pink hover:bg-pink-light transition-all"
+            >
+              <Calendar size={18} />
+              Agendar agora
+            </Link>
+          )}
 
           {service.includes.length > 0 && (
             <div className="mt-4 lg:mt-6">
@@ -147,13 +161,22 @@ export default async function ServicoDetailPage({ params }: Props) {
 
       {/* CTA mobile fixo no rodapé (acima da tab bar) */}
       <div className="lg:hidden fixed bottom-32 left-4 right-4 z-40">
-        <Link
-          href={`/kath-estetica/agendar/${service.id}`}
-          className="flex items-center justify-center gap-2 w-full font-body font-semibold text-base px-7 py-4 bg-pink text-white rounded-full shadow-pink hover:bg-pink-light transition-all"
-        >
-          <Calendar size={18} />
-          Agendar agora
-        </Link>
+        {service.requires_booking === false ? (
+          <div className="flex items-start gap-2 px-4 py-3 bg-bg-1 border border-yellow/40 rounded-full">
+            <MapPin size={16} className="stroke-yellow shrink-0 mt-0.5" />
+            <span className="text-[12px] text-yellow font-semibold leading-tight">
+              Sem agendamento · passe na loja
+            </span>
+          </div>
+        ) : (
+          <Link
+            href={`/kath-estetica/agendar/${service.id}`}
+            className="flex items-center justify-center gap-2 w-full font-body font-semibold text-base px-7 py-4 bg-pink text-white rounded-full shadow-pink hover:bg-pink-light transition-all"
+          >
+            <Calendar size={18} />
+            Agendar agora
+          </Link>
+        )}
       </div>
     </div>
   );
