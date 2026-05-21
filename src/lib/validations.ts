@@ -82,6 +82,20 @@ export const createEsteticaServiceSchema = z.object({
   sort_order: z.coerce.number().int().default(0),
 });
 
+// ── Estetica Booking criado pelo admin (cliente sem conta no app) ──
+export const adminBookingSchema = z.object({
+  service_id: z.string().uuid("Serviço obrigatório"),
+  vehicle_type_id: z.string().uuid("Tipo de moto obrigatório"),
+  scheduled_at: z.string().min(10, "Data/hora obrigatórias"),
+  customer_name: z.string().min(2, "Nome obrigatório").max(120),
+  customer_phone: z.string().min(8, "Telefone obrigatório").max(20),
+  vehicle_brand: z.string().min(1, "Marca obrigatória").max(80),
+  vehicle_model: z.string().min(1, "Modelo obrigatório").max(120),
+  vehicle_plate: z.string().min(4, "Placa obrigatória").max(15),
+  vehicle_color: z.string().max(40).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
+
 // ── Estetica Walk-in (atendimento presencial) ──
 export const walkinServiceSchema = z.object({
   // placa já normalizada (uppercase, sem traço/espaço) — Mercosul ou antigo

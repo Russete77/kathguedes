@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { notifyUser } from "@/lib/notifications";
-import { createEsteticaServiceSchema, walkinServiceSchema } from "@/lib/validations";
+import { adminBookingSchema, createEsteticaServiceSchema, walkinServiceSchema } from "@/lib/validations";
 import type { PlanTier } from "@/lib/supabase/types";
 import { getCashbackPct } from "@/lib/billing/plans";
 import { creditWalletCents } from "@/lib/billing/wallet";
@@ -856,6 +856,7 @@ export async function getPricingMatrixData(): Promise<{
     duration_min: number;
     slug: string | null;
     is_active: boolean;
+    requires_booking: boolean;
   }>;
   vehicleTypes: EsteticaVehicleType[];
   pricingByService: Record<string, ServicePricing>;
@@ -863,20 +864,31 @@ export async function getPricingMatrixData(): Promise<{
   await requireAdmin();
   const supabase = createAdminSupabaseClient();
 
+  // SELECT *: traz requires_booking se a migration 22 já rodou; default true.
   const { data: servicesRaw, error: servicesErr } = await supabase
     .from("estetica_services")
-    .select("id, title, category, duration_min, slug, is_active")
+    .select("*")
     .order("sort_order", { ascending: true });
   if (servicesErr) throw new Error(servicesErr.message);
 
-  const services = (servicesRaw ?? []) as unknown as Array<{
+  const services = ((servicesRaw ?? []) as unknown as Array<{
     id: string;
     title: string;
     category: string;
     duration_min: number;
     slug: string | null;
     is_active: boolean;
-  }>;
+    requires_booking?: boolean | null;
+  }>).map((s) => ({
+    id: s.id,
+    title: s.title,
+    category: s.category,
+    duration_min: s.duration_min,
+    slug: s.slug,
+    is_active: s.is_active,
+    // Default true: serviços sem a coluna (migration 22 não rodou) aceitam agendamento.
+    requires_booking: s.requires_booking !== false,
+  }));
 
   const vehicleTypes = await listVehicleTypes();
 
@@ -948,4 +960,120 @@ export async function saveServicePricing(input: ServicePricingInput) {
 
   revalidatePath("/admin/kath-estetica/precos");
   return { ok: true };
+}
+
+// ══════════════════════════════════════════
+// ADMIN CRIA BOOKING (cliente sem conta no app)
+// ══════════════════════════════════════════
+
+/**
+ * Cria um booking pelo admin para um cliente que não tem conta Clerk.
+ * Casos: cliente ligou, pediu pelo WhatsApp, ou apareceu na loja sem o app.
+ *
+ * Diferenças de POST /api/estetica/bookings (cliente):
+ *  - user_id = null (não tem profile)
+ *  - created_by_admin = adminId (audit)
+ *  - status = "confirmed" (admin já validou que vai atender)
+ *  - prepay_cents = 0; remaining_cents = total_cents (pagamento presencial,
+ *    admin quita depois via markBookingRemainderPaid)
+ *  - Sem cashback / loyalty / desconto de plano (cliente não tem plan_tier)
+ *  - Preço SEMPRE da matriz por tipo de moto
+ *
+ * Idempotência: não há key explícita. Admin que clicar 2× cria 2 bookings —
+ * comportamento consciente (admin sabe; idempotency-key viria do form).
+ */
+export async function createBookingAsAdmin(
+  formData: FormData,
+): Promise<{ ok: true; bookingId: string }> {
+  const adminId = await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+
+  const raw: Record<string, unknown> = {};
+  formData.forEach((value, key) => {
+    if (value instanceof File) return;
+    raw[key] = value === "" ? null : value;
+  });
+  const data = adminBookingSchema.parse(raw);
+
+  // Serviço precisa existir, estar ativo e aceitar agendamento.
+  // SELECT *: tolera ausência de `requires_booking` (migration 22) em dev
+  // que ainda não rodou — usa "true" como default seguro.
+  const { data: serviceRaw, error: svcErr } = await supabase
+    .from("estetica_services")
+    .select("*")
+    .eq("id", data.service_id)
+    .maybeSingle();
+  if (svcErr) {
+    throw new Error(`Falha ao buscar serviço: ${svcErr.message}`);
+  }
+  if (!serviceRaw) {
+    throw new Error(`Serviço ${data.service_id} não encontrado`);
+  }
+  const service = serviceRaw as unknown as {
+    id: string;
+    title: string;
+    duration_min: number;
+    price_cents: number;
+    requires_booking?: boolean | null;
+    is_active: boolean;
+  };
+  if (!service.is_active) throw new Error("Serviço inativo");
+  if (service.requires_booking === false) {
+    throw new Error("Este serviço é walk-in only. Use a página de Atendimento.");
+  }
+
+  // Resolver preço da matriz (obrigatório — não fazemos fallback para
+  // price_cents do service porque admin precisa cadastrar o tipo na matriz)
+  const pricing = await getServicePricing(service.id);
+  const option = pricing.options.find((o) => o.vehicle_type.id === data.vehicle_type_id);
+  if (!option) {
+    throw new Error(
+      "Este tipo de moto não tem preço cadastrado para o serviço. Configure em Preços.",
+    );
+  }
+  const priceCents = option.price_cents;
+
+  // Cast `as never` necessário até que `database.types.ts` seja regerado:
+  // user_id virou nullable e created_by_admin foi adicionado na migration 24.
+  const { data: bookingRaw, error: insErr } = await supabase
+    .from("estetica_bookings")
+    .insert({
+      user_id: null,
+      service_id: service.id,
+      vehicle_type_id: data.vehicle_type_id,
+      scheduled_at: data.scheduled_at,
+      duration_min: service.duration_min,
+      vehicle_brand: data.vehicle_brand,
+      vehicle_model: data.vehicle_model,
+      vehicle_plate: data.vehicle_plate,
+      vehicle_color: data.vehicle_color ?? null,
+      customer_name: data.customer_name,
+      customer_phone: data.customer_phone,
+      status: "confirmed",
+      price_cents: priceCents,
+      plan_discount_cents: 0,
+      loyalty_free: false,
+      cashback_used_cents: 0,
+      total_cents: priceCents,
+      prepay_cents: 0,
+      remaining_cents: priceCents,
+      paid_at: null,
+      notes: data.notes ?? null,
+      created_by_admin: adminId,
+    } as never)
+    .select("id")
+    .single();
+  if (insErr || !bookingRaw) {
+    // Detalhes para diagnosticar: se mencionar "user_id" ou "created_by_admin",
+    // a migration 24 não foi rodada ainda.
+    console.error("[createBookingAsAdmin] insert failed", insErr);
+    throw new Error(
+      insErr?.message
+        ? `Falha ao criar agendamento: ${insErr.message}`
+        : "Falha ao criar agendamento",
+    );
+  }
+
+  revalidatePath("/admin/kath-estetica/agendamentos");
+  return { ok: true, bookingId: (bookingRaw as { id: string }).id };
 }

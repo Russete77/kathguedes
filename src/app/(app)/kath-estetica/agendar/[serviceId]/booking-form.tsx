@@ -13,6 +13,7 @@ import {
 import type { ServicePricing } from "@/lib/estetica/pricing-types";
 import CashbackInput from "@/components/billing/cashback-input";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { PlateInput } from "@/components/ui/plate-input";
 
 interface Props {
   service: EsteticaService;
@@ -281,7 +282,12 @@ export function BookingForm({
         <div className="grid grid-cols-2 gap-2">
           <Input name="vehicle_brand" placeholder="Marca" required />
           <Input name="vehicle_model" placeholder="Modelo" required />
-          <Input name="vehicle_plate" placeholder="Placa" required />
+          <PlateInput
+            name="vehicle_plate"
+            placeholder="Placa"
+            required
+            className="w-full bg-bg-2 border border-gray-4 rounded-[8px] text-white text-[13px] px-3 py-2.5 outline-none focus:border-pink placeholder:text-gray-3"
+          />
           <Input name="vehicle_color" placeholder="Cor (opcional)" />
         </div>
       </Section>

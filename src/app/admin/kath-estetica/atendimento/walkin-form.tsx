@@ -8,6 +8,7 @@ import { normalizePlate, parsePlate, formatPlate } from "@/lib/estetica/plates";
 import { extractPlate, hasOCRProvider } from "@/lib/estetica/ocr";
 import { createWalkinService, lookupVehicleByPlate, loadServicePricing } from "../actions";
 import type { EsteticaVehicleType, ServicePricing } from "@/lib/estetica/pricing-types";
+import { PlateInput } from "@/components/ui/plate-input";
 
 interface ServiceOption {
   id: string;
@@ -234,15 +235,12 @@ export function WalkinForm({
               Placa {plate && plateValid ? <span className="text-pink">· {plateFormatted}</span> : null}
             </span>
             <div className="relative mt-1.5">
-              <input
+              <PlateInput
                 name="plate"
                 value={plate}
-                onChange={(e) => setPlate(e.target.value.toUpperCase())}
+                onValueChange={setPlate}
                 onBlur={handlePlateBlur}
-                placeholder="ABC1D23"
-                maxLength={10}
-                autoComplete="off"
-                className="w-full bg-bg-base border border-gray-4 rounded-[14px] px-4 py-3 text-white font-mono tracking-wider uppercase placeholder:text-gray-3 focus:border-pink outline-none"
+                className="w-full bg-bg-base border border-gray-4 rounded-[14px] px-4 py-3 text-white font-mono placeholder:text-gray-3 focus:border-pink outline-none"
               />
               {(ocrRunning || lookupRunning) && (
                 <Loader2

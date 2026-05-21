@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { updateBookingStatus, markBookingRemainderPaid } from "../actions";
 import { toast } from "sonner";
-import { Gift, Car, Phone, Clock, Loader2, CheckCircle2 } from "lucide-react";
+import { Gift, Car, Phone, Clock, Loader2, CheckCircle2, Store } from "lucide-react";
 import { formatPrice, formatDateTime } from "@/lib/estetica/types";
 import type { BookingRow } from "./page";
 
@@ -119,8 +119,15 @@ export function BookingsKanban({ bookings }: { bookings: BookingRow[] }) {
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-display text-xl text-white">
-                    {b.estetica_services?.title || "Serviço"}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="font-display text-xl text-white">
+                      {b.estetica_services?.title || "Serviço"}
+                    </div>
+                    {b.created_by_admin && (
+                      <Badge variant="white" className="gap-1 text-[10px]">
+                        <Store size={10} /> LOJA
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-gray-3 mt-1">
                     <Clock size={11} />
