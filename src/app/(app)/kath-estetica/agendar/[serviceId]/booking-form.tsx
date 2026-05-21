@@ -1,19 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, Car, Gift, Loader2 } from "lucide-react";
+import { Calendar, Clock, Car, Gift, Loader2, Bike } from "lucide-react";
 import {
   type EsteticaService,
   finalPriceCents,
   formatPrice,
 } from "@/lib/estetica/types";
+import type { ServicePricing } from "@/lib/estetica/pricing-types";
 import CashbackInput from "@/components/billing/cashback-input";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { PlateInput } from "@/components/ui/plate-input";
 
 interface Props {
   service: EsteticaService;
+  pricing: ServicePricing;
   discountPct: number;
   activeCashbackCents: number;
   defaultName: string;
@@ -23,6 +27,7 @@ interface Props {
 
 export function BookingForm({
   service,
+  pricing,
   discountPct,
   activeCashbackCents,
   defaultName,
@@ -38,11 +43,34 @@ export function BookingForm({
   const [useLoyalty, setUseLoyalty] = useState(loyaltyEligible);
   const [cashbackToUse, setCashbackToUse] = useState(0);
 
+  const hasMatrix = pricing.options.length > 0;
+  const [vehicleTypeId, setVehicleTypeId] = useState<string>(
+    hasMatrix && pricing.options.length === 1 ? pricing.options[0].vehicle_type.id : "",
+  );
+
+  // Preço base: vem da matriz (se houver tipo escolhido), senão do service
+  const basePrice = useMemo(() => {
+    if (!hasMatrix) return service.price_cents;
+    const opt = pricing.options.find((o) => o.vehicle_type.id === vehicleTypeId);
+    return opt?.price_cents ?? service.price_cents;
+  }, [hasMatrix, pricing.options, vehicleTypeId, service.price_cents]);
+
   const discPct = discountPct;
-  const basePrice = service.price_cents;
-  const planDiscountCents = basePrice - finalPriceCents(service, discountPct);
+  const baseRef = useMemo(() => ({ price_cents: basePrice }), [basePrice]);
+  const planDiscountCents = basePrice - finalPriceCents(baseRef, discountPct);
   const grossPrice = basePrice - planDiscountCents;
   const total = useLoyalty ? 0 : grossPrice - cashbackToUse;
+
+  // ── Sinal (prepay) ──
+  const rule = pricing.payment_rule;
+  const requiresPrepay = !!rule?.require_app_prepay && (rule?.prepay_pct ?? 0) > 0 && total > 0;
+  const prepayCents = requiresPrepay
+    ? Math.min(total, Math.round((total * (rule!.prepay_pct ?? 0)) / 100))
+    : 0;
+  const remainingCents = total - prepayCents;
+
+  // Bloquear submit se serviço tem matriz e tipo não foi escolhido
+  const needsVehicleType = hasMatrix && !vehicleTypeId;
 
   // Buscar slots sempre que a data muda
   useEffect(() => {
@@ -69,11 +97,16 @@ export function BookingForm({
       toast.error("Selecione um horário");
       return;
     }
+    if (needsVehicleType) {
+      toast.error("Selecione o tipo da sua moto");
+      return;
+    }
     setSubmitting(true);
 
     const form = new FormData(e.currentTarget);
     const payload = {
       service_id: service.id,
+      vehicle_type_id: vehicleTypeId || null,
       scheduled_at: selectedSlot,
       vehicle_brand: form.get("vehicle_brand"),
       vehicle_model: form.get("vehicle_model"),
@@ -136,16 +169,72 @@ export function BookingForm({
         </div>
       )}
 
+      {/* Tipo da moto (matriz de preços) */}
+      {hasMatrix && (
+        <Section icon={<Bike size={14} className="stroke-pink" />} title="TIPO DA SUA MOTO">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {pricing.options.map((o) => {
+              const active = vehicleTypeId === o.vehicle_type.id;
+              return (
+                <button
+                  key={o.vehicle_type.id}
+                  type="button"
+                  onClick={() => setVehicleTypeId(o.vehicle_type.id)}
+                  className={`text-left p-3 rounded-[12px] border transition-all ${
+                    active
+                      ? "bg-pink/10 border-pink shadow-pink"
+                      : "bg-bg-2 border-gray-4 hover:border-pink/40"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-[13px] font-semibold ${active ? "text-white" : "text-gray-2"}`}>
+                      {o.vehicle_type.label}
+                    </span>
+                    <span className={`font-mono text-[13px] ${active ? "text-pink" : "text-gray-3"}`}>
+                      {formatPrice(o.price_cents)}
+                    </span>
+                  </div>
+                  {o.vehicle_type.description && (
+                    <span className="text-[11px] text-gray-3 mt-0.5 block">
+                      {o.vehicle_type.description}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
       {/* Data + Horário lado a lado no mobile */}
       <Section icon={<Calendar size={14} className="stroke-pink" />} title="QUANDO">
-        <input
-          type="date"
-          required
-          min={todayStr}
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="w-full bg-bg-2 border border-gray-4 rounded-[8px] text-white text-[14px] px-3 py-2.5 outline-none focus:border-pink"
-        />
+        <div className="bg-bg-2 border border-gray-4 rounded-[12px] flex justify-center overflow-hidden">
+          <CalendarPicker
+            mode="single"
+            selected={date ? new Date(date + "T12:00:00") : undefined}
+            onSelect={(d) => {
+              if (!d) {
+                setDate("");
+                return;
+              }
+              // Formato YYYY-MM-DD em hora local (sem TZ shift)
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              setDate(`${y}-${m}-${day}`);
+            }}
+            disabled={{ before: new Date(todayStr + "T00:00:00") }}
+          />
+        </div>
+        {date && (
+          <p className="text-[11px] text-gray-3 mt-1.5 font-mono">
+            {new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+            })}
+          </p>
+        )}
       </Section>
 
       {/* Slots */}
@@ -193,7 +282,12 @@ export function BookingForm({
         <div className="grid grid-cols-2 gap-2">
           <Input name="vehicle_brand" placeholder="Marca" required />
           <Input name="vehicle_model" placeholder="Modelo" required />
-          <Input name="vehicle_plate" placeholder="Placa" required />
+          <PlateInput
+            name="vehicle_plate"
+            placeholder="Placa"
+            required
+            className="w-full bg-bg-2 border border-gray-4 rounded-[8px] text-white text-[13px] px-3 py-2.5 outline-none focus:border-pink placeholder:text-gray-3"
+          />
           <Input name="vehicle_color" placeholder="Cor (opcional)" />
         </div>
       </Section>
@@ -252,6 +346,24 @@ export function BookingForm({
             {formatPrice(total)}
           </span>
         </div>
+
+        {requiresPrepay && (
+          <div className="border-t border-gray-4 pt-1.5 space-y-1">
+            <div className="flex justify-between text-[12px]">
+              <span className="text-pink">
+                Sinal agora ({rule?.prepay_pct}%)
+              </span>
+              <span className="text-pink font-mono">{formatPrice(prepayCents)}</span>
+            </div>
+            <div className="flex justify-between text-[12px]">
+              <span className="text-gray-3">Restante na entrega</span>
+              <span className="text-gray-2 font-mono">{formatPrice(remainingCents)}</span>
+            </div>
+            {rule?.notes && (
+              <p className="text-[11px] text-gray-3 leading-snug pt-1">{rule.notes}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Cashback */}
@@ -268,7 +380,7 @@ export function BookingForm({
         type="submit"
         size="lg"
         className="hidden lg:flex w-full"
-        disabled={submitting || !selectedSlot}
+        disabled={submitting || !selectedSlot || needsVehicleType}
       >
         {submitting ? (
           <>
@@ -277,6 +389,8 @@ export function BookingForm({
           </>
         ) : useLoyalty ? (
           "Confirmar (grátis)"
+        ) : requiresPrepay ? (
+          `Pagar sinal de ${formatPrice(prepayCents)}`
         ) : (
           "Confirmar e ir para pagamento"
         )}
@@ -287,7 +401,7 @@ export function BookingForm({
           type="submit"
           size="lg"
           className="w-full"
-          disabled={submitting || !selectedSlot}
+          disabled={submitting || !selectedSlot || needsVehicleType}
         >
           {submitting ? (
             <>
@@ -296,6 +410,8 @@ export function BookingForm({
             </>
           ) : useLoyalty ? (
             "Confirmar (grátis)"
+          ) : requiresPrepay ? (
+            `Pagar sinal · ${formatPrice(prepayCents)}`
           ) : (
             "Confirmar e pagar"
           )}

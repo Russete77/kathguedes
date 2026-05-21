@@ -185,13 +185,18 @@ async function handleEsteticaPayment(
 ) {
   const { data: _bookingRaw } = await supabase
     .from("estetica_bookings")
-    .select("id, user_id, total_cents, cashback_used_cents, service_id, estetica_services(cost_cents)")
+    .select(
+      "id, user_id, total_cents, prepay_cents, prepay_paid_at, paid_at, cashback_used_cents, service_id, estetica_services(cost_cents)",
+    )
     .eq("id", bookingId)
     .single();
   type BookingRow = {
     id: string;
     user_id: string;
     total_cents: number;
+    prepay_cents: number | null;
+    prepay_paid_at: string | null;
+    paid_at: string | null;
     cashback_used_cents: number | null;
     service_id: string;
     estetica_services: { cost_cents: number } | null;
@@ -203,33 +208,61 @@ async function handleEsteticaPayment(
     return;
   }
 
-  await supabase
-    .from("estetica_bookings")
-    .update({
-      status: "confirmed",
-      paid_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", bookingId);
+  // ── Decidir: pagamento de sinal ou pagamento integral? ──
+  // Comparamos o valor recebido com o sinal esperado / total esperado.
+  // Margem de 1 centavo para arredondamento entre Postgres int e Asaas Decimal.
+  const receivedCents = Math.round(payment.value * 100);
+  const prepayCents = booking.prepay_cents ?? 0;
+  const remainingAfterSignal = booking.total_cents - prepayCents;
+  const isSignalPayment =
+    prepayCents > 0 &&
+    !booking.prepay_paid_at &&
+    Math.abs(receivedCents - prepayCents) <= 1 &&
+    remainingAfterSignal > 0;
+
+  const nowIso = new Date().toISOString();
+  const update: Record<string, unknown> = {
+    status: "confirmed",
+    updated_at: nowIso,
+  };
+  if (isSignalPayment) {
+    // Apenas marca sinal pago — paid_at fica null até admin/quitação total.
+    update.prepay_paid_at = nowIso;
+  } else {
+    // Pagamento integral (ou sinal == total quando prepay_pct = 100).
+    update.paid_at = nowIso;
+    if (prepayCents > 0 && !booking.prepay_paid_at) update.prepay_paid_at = nowIso;
+  }
+
+  await supabase.from("estetica_bookings").update(update).eq("id", bookingId);
 
   const serviceCost = booking.estetica_services?.cost_cents ?? 0;
 
+  // O revenue stream sempre registra o valor efetivamente pago neste evento
+  // (sinal OU total). Quando o restante for quitado presencialmente, o admin
+  // pode lançar manualmente — ou cobrir via futura action de "marcar pago".
   await recordRevenueStream({
     type: "estetica",
-    category: null,
+    category: isSignalPayment ? "signal" : null,
     user_id: booking.user_id,
     reference_type: "booking",
     reference_id: bookingId,
     asaas_payment_id: payment.id,
-    gross_cents: Math.round(payment.value * 100) + (booking.cashback_used_cents ?? 0),
-    cost_cents: serviceCost,
-    cashback_used_cents: booking.cashback_used_cents ?? 0,
-    occurred_at: new Date().toISOString(),
+    // Em pagamento integral via app, somamos cashback ao gross (modelo legacy).
+    // Em sinal, gross == valor do sinal — cashback continua refletido no total.
+    gross_cents: isSignalPayment
+      ? receivedCents
+      : receivedCents + (booking.cashback_used_cents ?? 0),
+    cost_cents: isSignalPayment ? 0 : serviceCost,
+    cashback_used_cents: isSignalPayment ? 0 : booking.cashback_used_cents ?? 0,
+    occurred_at: nowIso,
   });
 
   notifyUser(booking.user_id, {
-    title: "Pagamento confirmado!",
-    body: "Agendamento da estética confirmado. Até logo!",
+    title: isSignalPayment ? "Sinal confirmado!" : "Pagamento confirmado!",
+    body: isSignalPayment
+      ? `Sinal recebido. Restante de R$ ${(remainingAfterSignal / 100).toFixed(2)} na entrega.`
+      : "Agendamento da estética confirmado. Até logo!",
     icon: "Check",
     url: "/kath-estetica/meus-agendamentos",
   }).catch(() => {});

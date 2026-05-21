@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 // CSP directives — começa em Report-Only para coletar violations.
 // Após validar logs do Sentry/console por alguns dias, mudar para
@@ -32,6 +33,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   typescript: { ignoreBuildErrors: false },
+  outputFileTracingRoot: path.resolve(__dirname),
   serverExternalPackages: ["web-push", "ioredis"],
   images: {
     // SEM wildcard "https://**" — proxy aberto via /_next/image é vetor SSRF.

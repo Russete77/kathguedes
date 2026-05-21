@@ -60,9 +60,9 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)} />
       <form
         onSubmit={handleSubmit}
-        className="relative bg-bg-1 border border-gray-4 rounded-[22px] p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4"
+        className="relative bg-bg-1 border border-gray-4 rounded-[22px] p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4"
       >
-        <h2 className="font-display text-2xl text-white">
+        <h2 className="font-display text-xl sm:text-2xl text-white">
           {editing ? "EDITAR" : "NOVO"} SERVIÇO
         </h2>
 
@@ -70,7 +70,7 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
         <Field label="Descrição" name="description" textarea defaultValue={initial?.description || ""} />
         <Field label="URL da imagem" name="image_url" defaultValue={initial?.image_url || ""} />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Select
             label="Categoria"
             name="category"
@@ -93,7 +93,7 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field
             label="Preço (centavos)"
             name="price_cents"

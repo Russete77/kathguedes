@@ -37,6 +37,8 @@ export async function POST(
     id: string;
     status: string;
     total_cents: number;
+    prepay_cents: number | null;
+    prepay_paid_at: string | null;
     loyalty_free: boolean;
   };
 
@@ -61,7 +63,13 @@ export async function POST(
     );
   }
 
-  const totalReais = booking.total_cents / 100;
+  // ── Decisão do valor a cobrar via Asaas ──
+  // Se prepay_cents > 0 e ainda não pago: cobra só o sinal (resto presencial).
+  // Caso contrário: cobra o total (fluxo legacy).
+  const prepayCents = booking.prepay_cents ?? 0;
+  const isSignalPayment = prepayCents > 0 && !booking.prepay_paid_at;
+  const amountCents = isSignalPayment ? prepayCents : booking.total_cents;
+  const totalReais = amountCents / 100;
 
   if (!process.env.ASAAS_API_KEY) {
     return NextResponse.json(
@@ -116,7 +124,9 @@ export async function POST(
         billingType: "PIX",
         value: totalReais,
         dueDate: dueDateStr,
-        description: `Kath Estética — Agendamento #${booking.id.substring(0, 8).toUpperCase()}`,
+        description: isSignalPayment
+          ? `Kath Estética — Sinal Agendamento #${booking.id.substring(0, 8).toUpperCase()}`
+          : `Kath Estética — Agendamento #${booking.id.substring(0, 8).toUpperCase()}`,
         externalReference: `estetica:${booking.id}`,
       }),
     });
@@ -145,6 +155,10 @@ export async function POST(
       pixPayload: pixData.payload,
       expirationDate: pixData.expirationDate,
       total: totalReais,
+      isSignal: isSignalPayment,
+      remainingReais: isSignalPayment
+        ? (booking.total_cents - prepayCents) / 100
+        : 0,
     });
   } catch (err) {
     console.error("[estetica/payment] Error:", err);

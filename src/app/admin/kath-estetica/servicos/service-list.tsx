@@ -51,8 +51,60 @@ export function ServiceList({ services }: { services: Service[] }) {
 
   return (
     <>
-      <div className="bg-bg-1 border border-gray-4 rounded-[22px] overflow-hidden">
-        <table className="w-full text-sm">
+      {/* MOBILE: cards verticais (< sm) */}
+      <div className="sm:hidden space-y-3">
+        {services.map((s) => (
+          <div
+            key={s.id}
+            className="bg-bg-1 border border-gray-4 rounded-[18px] p-4 space-y-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-white font-semibold leading-tight truncate">
+                  {s.title}
+                </div>
+                <div className="text-[11px] text-gray-3 uppercase tracking-wider mt-0.5">
+                  {s.category} · {s.duration_min} min
+                </div>
+              </div>
+              <Badge variant={s.is_active ? "pink" : "dark"}>
+                {s.is_active ? "Ativo" : "Inativo"}
+              </Badge>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-4">
+              <span className="font-display text-xl text-pink">
+                {formatPrice(s.price_cents)}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setEditing(s)}
+                  aria-label="Editar"
+                  className="text-gray-2 hover:text-pink p-2 -mr-1 inline-flex items-center justify-center rounded-md hover:bg-bg-2"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  onClick={() => handleDelete(s.id, s.title)}
+                  disabled={pending}
+                  aria-label="Excluir"
+                  className="text-gray-2 hover:text-danger p-2 inline-flex items-center justify-center rounded-md hover:bg-bg-2 disabled:opacity-50"
+                >
+                  {pending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={16} />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* DESKTOP: tabela (>= sm) com scroll horizontal de fallback */}
+      <div className="hidden sm:block bg-bg-1 border border-gray-4 rounded-[22px] overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className="bg-bg-2">
             <tr className="text-left">
               <th className="px-4 py-3 font-mono text-[11px] text-gray-3 tracking-[0.1em] uppercase">Serviço</th>
@@ -68,8 +120,12 @@ export function ServiceList({ services }: { services: Service[] }) {
               <tr key={s.id} className="border-t border-gray-4">
                 <td className="px-4 py-3 text-white font-semibold">{s.title}</td>
                 <td className="px-4 py-3 text-gray-2">{s.category}</td>
-                <td className="px-4 py-3 text-gray-2 font-mono">{s.duration_min} min</td>
-                <td className="px-4 py-3 text-pink font-mono">{formatPrice(s.price_cents)}</td>
+                <td className="px-4 py-3 text-gray-2 font-mono whitespace-nowrap">
+                  {s.duration_min} min
+                </td>
+                <td className="px-4 py-3 text-pink font-mono whitespace-nowrap">
+                  {formatPrice(s.price_cents)}
+                </td>
                 <td className="px-4 py-3">
                   <Badge variant={s.is_active ? "pink" : "dark"}>
                     {s.is_active ? "Ativo" : "Inativo"}
@@ -79,14 +135,16 @@ export function ServiceList({ services }: { services: Service[] }) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setEditing(s)}
-                      className="text-gray-2 hover:text-pink p-1.5"
+                      aria-label="Editar"
+                      className="text-gray-2 hover:text-pink p-2 inline-flex items-center justify-center rounded-md hover:bg-bg-2"
                     >
                       <Pencil size={14} />
                     </button>
                     <button
                       onClick={() => handleDelete(s.id, s.title)}
                       disabled={pending}
-                      className="text-gray-2 hover:text-danger p-1.5"
+                      aria-label="Excluir"
+                      className="text-gray-2 hover:text-danger p-2 inline-flex items-center justify-center rounded-md hover:bg-bg-2 disabled:opacity-50"
                     >
                       {pending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                     </button>

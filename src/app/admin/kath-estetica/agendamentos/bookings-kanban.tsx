@@ -2,11 +2,28 @@
 
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
-import { updateBookingStatus } from "../actions";
+import { updateBookingStatus, markBookingRemainderPaid } from "../actions";
 import { toast } from "sonner";
-import { Gift, Car, Phone, Clock, Loader2 } from "lucide-react";
+import { Gift, Car, Phone, Clock, Loader2, CheckCircle2, Store } from "lucide-react";
 import { formatPrice, formatDateTime } from "@/lib/estetica/types";
 import type { BookingRow } from "./page";
+
+type PaymentMethod =
+  | "dinheiro"
+  | "pix"
+  | "cartao_debito"
+  | "cartao_credito"
+  | "transferencia"
+  | "outro";
+
+const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  dinheiro: "Dinheiro",
+  pix: "PIX",
+  cartao_debito: "Débito",
+  cartao_credito: "Crédito",
+  transferencia: "Transferência",
+  outro: "Outro",
+};
 
 type Status = BookingRow["status"];
 
@@ -30,12 +47,25 @@ const nextStatusByCurrent: Record<Status, Status[]> = {
 export function BookingsKanban({ bookings }: { bookings: BookingRow[] }) {
   const [pending, startTransition] = useTransition();
   const [activeFilter, setActiveFilter] = useState<Status | "all">("all");
+  const [methodById, setMethodById] = useState<Record<string, PaymentMethod>>({});
 
   function handleTransition(id: string, next: Status) {
     startTransition(async () => {
       try {
         await updateBookingStatus(id, next);
         toast.success("Status atualizado");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro");
+      }
+    });
+  }
+
+  function handleRemainderPaid(id: string) {
+    const method = methodById[id] ?? "pix";
+    startTransition(async () => {
+      try {
+        await markBookingRemainderPaid(id, method);
+        toast.success(`Restante quitado · ${PAYMENT_METHOD_LABEL[method]}`);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro");
       }
@@ -89,8 +119,15 @@ export function BookingsKanban({ bookings }: { bookings: BookingRow[] }) {
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-display text-xl text-white">
-                    {b.estetica_services?.title || "Serviço"}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="font-display text-xl text-white">
+                      {b.estetica_services?.title || "Serviço"}
+                    </div>
+                    {b.created_by_admin && (
+                      <Badge variant="white" className="gap-1 text-[10px]">
+                        <Store size={10} /> LOJA
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-gray-3 mt-1">
                     <Clock size={11} />
@@ -102,8 +139,34 @@ export function BookingsKanban({ bookings }: { bookings: BookingRow[] }) {
                     <Gift size={10} /> GRÁTIS
                   </Badge>
                 ) : (
-                  <div className="font-display text-lg text-pink">
-                    {formatPrice(b.total_cents)}
+                  <div className="text-right">
+                    <div className="font-display text-lg text-pink">
+                      {formatPrice(b.total_cents)}
+                    </div>
+                    {(b.prepay_cents ?? 0) > 0 && b.paid_at == null && (
+                      <div className="text-[10px] text-gray-3 leading-tight mt-0.5">
+                        {b.prepay_paid_at ? (
+                          <>
+                            <span className="text-success">
+                              sinal {formatPrice(b.prepay_cents ?? 0)} pago
+                            </span>
+                            <br />
+                            <span className="text-yellow">
+                              resta {formatPrice(b.remaining_cents ?? 0)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-yellow">
+                            aguardando sinal de {formatPrice(b.prepay_cents ?? 0)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {b.paid_at && (
+                      <div className="text-[10px] text-success leading-tight mt-0.5 flex items-center gap-1 justify-end">
+                        <CheckCircle2 size={10} /> quitado
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -141,6 +204,45 @@ export function BookingsKanban({ bookings }: { bookings: BookingRow[] }) {
                   </button>
                 ))}
               </div>
+
+              {/* Quitação presencial: aparece quando sinal pago + restante > 0 */}
+              {b.paid_at == null && (b.remaining_cents ?? 0) > 0 && b.prepay_paid_at && (
+                <div className="pt-3 border-t border-gray-4 space-y-2">
+                  <div className="text-[11px] text-gray-2 uppercase tracking-wider">
+                    Quitar restante presencialmente
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <select
+                      value={methodById[b.id] ?? "pix"}
+                      onChange={(e) =>
+                        setMethodById((prev) => ({
+                          ...prev,
+                          [b.id]: e.target.value as PaymentMethod,
+                        }))
+                      }
+                      className="flex-1 bg-bg-2 border border-gray-4 rounded-[8px] text-white text-[12px] px-3 py-2 outline-none focus:border-pink"
+                    >
+                      {Object.entries(PAYMENT_METHOD_LABEL).map(([v, l]) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handleRemainderPaid(b.id)}
+                      disabled={pending}
+                      className="px-4 py-2 rounded-[8px] text-[12px] font-semibold bg-pink text-white hover:bg-pink-light disabled:opacity-50 transition-all inline-flex items-center gap-1.5"
+                    >
+                      {pending ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={12} />
+                      )}
+                      Quitar {formatPrice(b.remaining_cents ?? 0)}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

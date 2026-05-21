@@ -27,6 +27,7 @@ export interface EsteticaService {
   includes: string[];
   eligible_for_loyalty: boolean;
   requires_paid_plan: boolean;
+  requires_booking?: boolean;
   is_active: boolean;
   sort_order: number;
   created_at: string;

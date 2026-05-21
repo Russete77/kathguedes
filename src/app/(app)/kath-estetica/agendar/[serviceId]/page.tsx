@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -7,6 +7,7 @@ import { type EsteticaService } from "@/lib/estetica/types";
 import { BookingForm } from "./booking-form";
 import { getEsteticaDiscountPct } from "@/lib/billing/plans";
 import { getWalletActiveCents } from "@/lib/billing/wallet";
+import { getServicePricing } from "@/lib/estetica/pricing";
 import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata = { title: "Agendar Serviço" };
@@ -37,11 +38,17 @@ export default async function AgendarPage({ params }: Props) {
 
   if (!serviceRaw) notFound();
   const service = serviceRaw as unknown as EsteticaService;
+
+  // Lavagem simples e outros serviços walk-in only não passam por agendamento.
+  if (service.requires_booking === false) {
+    redirect(`/kath-estetica/servicos/${service.id}`);
+  }
   const planTier = ((profile?.plan_tier as string) || "free") as PlanTier;
 
-  const [discountPct, activeCashbackCents] = await Promise.all([
+  const [discountPct, activeCashbackCents, pricing] = await Promise.all([
     getEsteticaDiscountPct(planTier),
     getWalletActiveCents(userId!),
+    getServicePricing(service.id),
   ]);
 
   // Verificar elegibilidade fidelidade (3 fotos aprovadas no mês atual)
@@ -86,6 +93,7 @@ export default async function AgendarPage({ params }: Props) {
 
       <BookingForm
         service={service}
+        pricing={pricing}
         discountPct={discountPct}
         activeCashbackCents={activeCashbackCents}
         defaultName={

@@ -8,15 +8,19 @@ export default async function AdminEsteticaServicosPage() {
   const services = await getServices();
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-4xl text-white">ESTÉTICA MOTO · SERVIÇOS</h1>
-          <p className="text-gray-2 text-sm mt-1">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-5 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl text-white leading-tight">
+            ESTÉTICA MOTO · SERVIÇOS
+          </h1>
+          <p className="text-gray-2 text-xs sm:text-sm mt-1">
             Catálogo de serviços da Kath Guedes Estética Moto.
           </p>
         </div>
-        <ServiceForm />
+        <div className="self-start sm:self-auto">
+          <ServiceForm />
+        </div>
       </div>
       <ServiceList services={services} />
     </div>

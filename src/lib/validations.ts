@@ -82,6 +82,49 @@ export const createEsteticaServiceSchema = z.object({
   sort_order: z.coerce.number().int().default(0),
 });
 
+// ── Estetica Booking criado pelo admin (cliente sem conta no app) ──
+export const adminBookingSchema = z.object({
+  service_id: z.string().uuid("Serviço obrigatório"),
+  vehicle_type_id: z.string().uuid("Tipo de moto obrigatório"),
+  scheduled_at: z.string().min(10, "Data/hora obrigatórias"),
+  customer_name: z.string().min(2, "Nome obrigatório").max(120),
+  customer_phone: z.string().min(8, "Telefone obrigatório").max(20),
+  vehicle_brand: z.string().min(1, "Marca obrigatória").max(80),
+  vehicle_model: z.string().min(1, "Modelo obrigatório").max(120),
+  vehicle_plate: z.string().min(4, "Placa obrigatória").max(15),
+  vehicle_color: z.string().max(40).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
+
+// ── Estetica Walk-in (atendimento presencial) ──
+export const walkinServiceSchema = z.object({
+  // placa já normalizada (uppercase, sem traço/espaço) — Mercosul ou antigo
+  plate: z
+    .string()
+    .regex(/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/, "Placa inválida (use ABC1D23 ou ABC1234)"),
+  customer_name: z.string().min(2, "Nome do cliente obrigatório").max(200),
+  customer_phone: z.string().min(8, "Telefone obrigatório").max(20),
+  customer_cpf: z.string().max(20).nullable().optional(),
+  customer_email: z.string().email("E-mail inválido").max(200).nullable().optional().or(z.literal("").transform(() => null)),
+  vehicle_brand: z.string().max(80).nullable().optional(),
+  vehicle_model: z.string().max(80).nullable().optional(),
+  vehicle_color: z.string().max(40).nullable().optional(),
+  vehicle_year: z.coerce.number().int().min(1900).max(2100).nullable().optional(),
+  service_id: z.string().uuid("Serviço inválido").nullable().optional(),
+  vehicle_type_id: z.string().uuid("Tipo de moto inválido").nullable().optional(),
+  price_cents: z.coerce.number().int().min(0, "Preço inválido"),
+  payment_method: z.enum([
+    "dinheiro",
+    "pix",
+    "cartao_debito",
+    "cartao_credito",
+    "transferencia",
+    "outro",
+  ]),
+  payment_status: z.enum(["pago", "pendente", "isento"]).default("pago"),
+  notes: z.string().max(2000).nullable().optional(),
+});
+
 // ── Consultation ──
 export const updateConsultationSchema = z.object({
   workout_plan: z.unknown().optional(),
