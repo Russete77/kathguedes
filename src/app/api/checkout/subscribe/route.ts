@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { processCheckout } from "@/lib/asaas/checkout";
+import { AsaasApiError } from "@/lib/asaas/client";
 import { ASAAS_CONFIG } from "@/lib/asaas/config";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -160,6 +161,32 @@ export async function POST(req: NextRequest) {
       message: "Assinatura criada! Aguardando confirmacao do pagamento.",
     });
   } catch (err) {
+    // Erros do Asaas viram mensagem acionável (não um 500 opaco).
+    if (err instanceof AsaasApiError) {
+      // Loga server-side (Vercel/Sentry) com a causa completa para auditoria.
+      handleApiError(err, "POST /api/checkout/subscribe (asaas)");
+      if (err.status >= 400 && err.status < 500) {
+        // 4xx = dados recusados pelo Asaas (CPF/CNPJ inválido, e-mail, etc.).
+        return NextResponse.json(
+          {
+            error: "payment_validation",
+            message:
+              err.description ??
+              "Dados de pagamento recusados. Confira o CPF/CNPJ informado.",
+          },
+          { status: 422 },
+        );
+      }
+      // 5xx = indisponibilidade do provedor.
+      return NextResponse.json(
+        {
+          error: "payment_provider_error",
+          message:
+            "O processador de pagamento está instável no momento. Tente novamente em instantes.",
+        },
+        { status: 502 },
+      );
+    }
     return handleApiError(err, "POST /api/checkout/subscribe");
   }
 }

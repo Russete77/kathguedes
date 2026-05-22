@@ -11,6 +11,25 @@ import { ASAAS_CONFIG } from "./config";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
+/**
+ * Erro tipado do Asaas — carrega o status HTTP e o corpo de erro retornado.
+ * Permite ao chamador distinguir 4xx (dados do usuário: CPF inválido, etc.)
+ * de 5xx (indisponibilidade do provedor) e exibir a causa real ao usuário,
+ * em vez de um 500 genérico.
+ */
+export class AsaasApiError extends Error {
+  constructor(public readonly status: number, public readonly body: unknown) {
+    super(`Asaas API error ${status}: ${JSON.stringify(body)}`);
+    this.name = "AsaasApiError";
+  }
+
+  /** Primeira descrição de erro retornada pelo Asaas (`errors[0].description`), se houver. */
+  get description(): string | null {
+    const b = this.body as { errors?: Array<{ description?: string }> } | null;
+    return b?.errors?.[0]?.description ?? null;
+  }
+}
+
 const MAX_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 250;
 
@@ -57,12 +76,12 @@ async function asaasRequest<T>(
     // 4xx — não retentar
     if (res.status >= 400 && res.status < 500) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(`Asaas API error ${res.status}: ${JSON.stringify(err)}`);
+      throw new AsaasApiError(res.status, err);
     }
 
     // 5xx — backoff e retentar (se ainda tem tentativa)
     const errBody = await res.json().catch(() => ({}));
-    lastError = new Error(`Asaas API error ${res.status}: ${JSON.stringify(errBody)}`);
+    lastError = new AsaasApiError(res.status, errBody);
     if (attempt < MAX_ATTEMPTS) {
       await sleep(BASE_BACKOFF_MS * 2 ** (attempt - 1));
       continue;
