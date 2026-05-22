@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,7 +23,7 @@ const interests = [
 ];
 
 export function OnboardingForm() {
-  const router = useRouter();
+  const { getToken } = useAuth();
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -40,18 +40,35 @@ export function OnboardingForm() {
   async function handleSubmit() {
     setLoading(true);
     try {
-      await fetch("/api/onboarding", {
+      const res = await fetch("/api/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, interests: selected }),
       });
+      // Sem checar res.ok, um 502 (Clerk metadata não gravado) passaria como
+      // sucesso e cairia em loop no /onboarding. Falhar aqui deixa o user repetir.
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "Erro ao salvar");
+      }
+
+      // O middleware decide o gate de onboarding lendo `onboarding_completed` do
+      // TOKEN de sessão do Clerk. A API acabou de atualizar o publicMetadata, mas
+      // o token atual do browser ainda está defasado — navegar para /dashboard
+      // agora seria devolvido para /onboarding (loop que só o re-login resolvia).
+      // skipCache força a emissão de um token novo (com o claim atualizado) e
+      // atualiza o cookie que o middleware lê.
+      await getToken({ skipCache: true });
+
       toast.success("Perfil configurado!", {
         style: { borderLeft: "3px solid #00FF88" },
       });
-      router.push("/dashboard");
-    } catch {
-      toast.error("Erro ao salvar");
-    } finally {
+
+      // Navegação "hard": garante que a request a /dashboard já carregue o cookie
+      // novo. Não resetamos `loading` no sucesso — a página é trocada em seguida.
+      window.location.href = "/dashboard";
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
       setLoading(false);
     }
   }
