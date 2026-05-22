@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { cancelSubscription } from "@/lib/asaas/client";
 import { NextResponse } from "next/server";
 
@@ -23,8 +23,12 @@ export async function POST() {
       );
     }
 
-    // 2. Get user profile
-    const supabase = await createServerSupabaseClient();
+    // 2. Get user profile.
+    // Admin client (service_role): a leitura é do próprio profile (filtrado por id,
+    // userId vem autenticado do Clerk) e o downgrade abaixo mexe em colunas de
+    // assinatura — que o trigger guard_profile_sensitive_columns só permite a
+    // service_role. RLS aqui causaria "Profile not found" e o trigger bloquearia o update.
+    const supabase = createAdminSupabaseClient();
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("asaas_subscription_id")
@@ -32,6 +36,11 @@ export async function POST() {
       .single();
 
     if (profileError || !profile) {
+      console.error("[checkout/cancel] profile lookup failed", {
+        userId,
+        code: profileError?.code,
+        message: profileError?.message,
+      });
       return NextResponse.json(
         { error: "Profile not found" },
         { status: 404 }

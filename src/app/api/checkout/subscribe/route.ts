@@ -1,5 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { processCheckout } from "@/lib/asaas/checkout";
 import { ASAAS_CONFIG } from "@/lib/asaas/config";
 import { NextRequest, NextResponse } from "next/server";
@@ -87,14 +87,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email nao encontrado" }, { status: 400 });
     }
 
-    const supabase = await createServerSupabaseClient();
-    const { data: profile, error: profileError } = await supabase
+    // Leitura do PRÓPRIO profile do usuário num caminho crítico de pagamento.
+    // Usa admin client (igual ao (app)/layout.tsx que CRIA o profile e ao
+    // processCheckout que o relê logo abaixo) para não depender da validação
+    // do JWT Clerk->Supabase via RLS aqui — userId já vem autenticado do Clerk
+    // e filtramos por id, então não há IDOR. Decisões de preço seguem no servidor.
+    const admin = createAdminSupabaseClient();
+    const { data: profile, error: profileError } = await admin
       .from("profiles")
       .select("full_name, cpf")
       .eq("id", userId)
       .single();
 
     if (profileError || !profile) {
+      console.error("[subscribe] profile lookup failed", {
+        userId,
+        code: profileError?.code,
+        message: profileError?.message,
+      });
       return NextResponse.json({ error: "Perfil nao encontrado" }, { status: 404 });
     }
 
@@ -126,7 +136,6 @@ export async function POST(req: NextRequest) {
 
     // Se CPF veio do body, persiste antes do checkout (idempotente em re-tentativas)
     if (cpfFromBody && cpfRaw !== profile.cpf) {
-      const admin = createAdminSupabaseClient();
       await admin.from("profiles").update({ cpf: cpfRaw }).eq("id", userId);
     }
 

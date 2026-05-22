@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { hasPlanAccess } from "@/lib/billing/access";
 import { ChatRoom } from "./chat-room";
 import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,8 @@ export default async function ChatPage() {
     .eq("id", userId!)
     .single();
 
-  if (profile?.plan_tier !== "vip") {
+  // Chat exige plano3 ou superior — alinhado à RLS messages_insert_chat.
+  if (!hasPlanAccess(profile?.plan_tier, "plano3")) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-6 text-center py-20">
         <MessageCircle size={48} className="stroke-gray-3 mx-auto mb-4" />

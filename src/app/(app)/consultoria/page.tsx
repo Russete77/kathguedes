@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { hasPlanAccess } from "@/lib/billing/access";
 import { auth } from "@clerk/nextjs/server";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -50,12 +51,13 @@ export default async function ConsultoriaPage() {
 
   // ── Sem consultoria ativa ──
   if (!consultation) {
-    if (planTier === "vip") {
+    // Consultoria é entitlement de plano2 ou superior (ver ensureConsultationForTier).
+    if (hasPlanAccess(planTier, "plano2")) {
       return (
         <div className="max-w-2xl mx-auto px-4 py-6 text-center py-20">
           <Crown size={48} className="stroke-pink mx-auto mb-4" />
           <h2 className="font-display text-3xl text-white mb-2">
-            CONSULTORIA <span className="text-pink">VIP</span>
+            SUA <span className="text-pink">CONSULTORIA</span>
           </h2>
           <p className="text-gray-2 mb-6">
             Sua consultoria será criada automaticamente. Se já fez o pagamento,
@@ -78,15 +80,15 @@ export default async function ConsultoriaPage() {
           SEM CONSULTORIA ATIVA
         </h2>
         <p className="text-gray-2 mb-6">
-          Faça upgrade para o plano VIP para ter acesso à consultoria
-          personalizada com treino e dieta montados pela Kath.
+          Faça upgrade para um plano com consultoria e tenha treino e dieta
+          personalizados montados pela Kath.
         </p>
         <Link
           href="/planos"
           className="inline-flex items-center gap-2 px-6 py-3 bg-pink hover:bg-pink/90 text-white rounded-full font-semibold text-sm transition-colors"
         >
           <Crown size={16} />
-          Ver plano VIP
+          Ver planos
         </Link>
       </div>
     );

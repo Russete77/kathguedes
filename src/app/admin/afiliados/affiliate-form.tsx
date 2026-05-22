@@ -123,9 +123,11 @@ export function AffiliateForm() {
                 </SelectTrigger>
                 <SelectContent className="bg-bg-2 border-gray-4">
                   <SelectItem value="free">Free</SelectItem>
-                  <SelectItem value="start">Start</SelectItem>
-                  <SelectItem value="pro">Pro</SelectItem>
-                  <SelectItem value="vip">VIP</SelectItem>
+                  <SelectItem value="acesso">Acesso</SelectItem>
+                  <SelectItem value="plano1">Plano 1</SelectItem>
+                  <SelectItem value="plano2">Plano 2</SelectItem>
+                  <SelectItem value="plano3">Plano 3</SelectItem>
+                  <SelectItem value="atleta">Atleta</SelectItem>
                 </SelectContent>
               </Select>
             </div>

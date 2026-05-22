@@ -46,8 +46,13 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminSupabaseClient();
 
-    // 3. Idempotência atômica via webhook_events
-    const idempotencyKey = `${payment.id}:${event}`;
+    // 3. Idempotência atômica via webhook_events.
+    // PAYMENT_CONFIRMED e PAYMENT_RECEIVED representam o MESMO "dinheiro entrou"
+    // e o Asaas dispara ambos para um mesmo pagamento. Colapsamos numa chave
+    // única (`<id>:paid`) para NÃO processar duas vezes (evita cashback/revenue/
+    // comissões em dobro). Os demais eventos mantêm chave por evento.
+    const isPositive = event === "PAYMENT_CONFIRMED" || event === "PAYMENT_RECEIVED";
+    const idempotencyKey = isPositive ? `${payment.id}:paid` : `${payment.id}:${event}`;
     const { error: insertError } = await supabase
       .from("webhook_events")
       .insert({ payment_id: idempotencyKey, event });

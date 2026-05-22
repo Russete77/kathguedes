@@ -105,15 +105,17 @@ export function CouponForm() {
               <label className="text-[12px] font-semibold text-gray-2 tracking-[0.06em] uppercase">
                 Plano mínimo
               </label>
-              <Select name="required_plan" defaultValue="start">
+              <Select name="required_plan" defaultValue="free">
                 <SelectTrigger className="bg-bg-1 border-gray-4 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-bg-2 border-gray-4">
                   <SelectItem value="free">Free</SelectItem>
-                  <SelectItem value="start">Start</SelectItem>
-                  <SelectItem value="pro">Pro</SelectItem>
-                  <SelectItem value="vip">VIP</SelectItem>
+                  <SelectItem value="acesso">Acesso</SelectItem>
+                  <SelectItem value="plano1">Plano 1</SelectItem>
+                  <SelectItem value="plano2">Plano 2</SelectItem>
+                  <SelectItem value="plano3">Plano 3</SelectItem>
+                  <SelectItem value="atleta">Atleta</SelectItem>
                 </SelectContent>
               </Select>
             </div>

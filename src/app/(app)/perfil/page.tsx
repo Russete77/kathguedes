@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import WalletBlock from "./wallet-block";
 import { getWalletActiveCents } from "@/lib/billing/wallet";
+import { hasPlanAccess, isTopPlan } from "@/lib/billing/access";
 
 export const metadata: Metadata = {
   title: "Meu Perfil",
@@ -59,9 +60,11 @@ export default async function PerfilPage() {
 
   const planColors: Record<string, string> = {
     free: "text-gray-2",
-    start: "text-info",
-    pro: "text-pink",
-    vip: "text-yellow",
+    acesso: "text-info",
+    plano1: "text-info",
+    plano2: "text-pink",
+    plano3: "text-pink",
+    atleta: "text-yellow",
   };
 
   return (
@@ -90,7 +93,7 @@ export default async function PerfilPage() {
           </h1>
           <p className="text-gray-2 text-sm mt-1">{user?.emailAddresses?.[0]?.emailAddress}</p>
           <div className="flex items-center justify-center gap-3 mt-4">
-            <Badge variant={planTier === "vip" ? "yellow" : planTier === "pro" ? "pink" : "white"}>
+            <Badge variant={isTopPlan(planTier) ? "yellow" : hasPlanAccess(planTier, "plano2") ? "pink" : "white"}>
               <Crown size={12} />
               {planTier.toUpperCase()}
             </Badge>
@@ -136,7 +139,7 @@ export default async function PerfilPage() {
             </span>
           </div>
         )}
-        {planTier !== "vip" && (
+        {!isTopPlan(planTier) && (
           <Link href="/planos" className="block pt-2">
             <Button size="sm" className="w-full">
               <Crown size={14} /> Fazer Upgrade <ArrowRight size={14} />

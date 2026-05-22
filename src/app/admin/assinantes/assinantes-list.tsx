@@ -90,7 +90,7 @@ export function AssinantesList({ profiles }: { profiles: Profile[] }) {
           />
         </div>
         <div className="flex gap-1.5">
-          {["all", "free", "start", "pro", "vip"].map((plan) => (
+          {["all", "free", "acesso", "plano1", "plano2", "plano3", "atleta"].map((plan) => (
             <button
               key={plan}
               onClick={() => setFilterPlan(plan)}
