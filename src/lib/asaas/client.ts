@@ -203,6 +203,26 @@ interface PaymentListResponse {
   totalCount: number;
 }
 
+interface CreatePaymentParams {
+  customer: string;
+  billingType: "PIX" | "BOLETO" | "CREDIT_CARD";
+  value: number;
+  dueDate: string; // YYYY-MM-DD
+  description?: string;
+  externalReference?: string;
+}
+
+/**
+ * Cria uma cobrança avulsa (não-recorrente). Usado por loja e estética (PIX).
+ * Centraliza o POST /payments — antes duplicado inline em cada rota — para
+ * herdar retry/backoff e o AsaasApiError tipado (expõe a causa real ao usuário).
+ */
+export async function createPayment(
+  params: CreatePaymentParams,
+): Promise<AsaasPayment> {
+  return asaasRequest<AsaasPayment>("/payments", "POST", params);
+}
+
 /**
  * Lista os pagamentos de uma subscription.
  * O primeiro pagamento é gerado automaticamente pelo Asaas ao criar a subscription.

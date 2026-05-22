@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
+import { checkRateLimitAsync } from "@/lib/rate-limit";
+import type { AsaasPayment } from "@/lib/asaas/client";
 
 /**
  * POST /api/loja/payment
@@ -15,6 +17,18 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
+
+  // F2: rate limit — esta rota cria cobrança no Asaas e deve ser protegida.
+  const { allowed } = await checkRateLimitAsync(`loja-payment:${userId}`, {
+    maxRequests: 5,
+    windowMs: 60_000,
+  });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Muitas tentativas. Aguarde 1 minuto." },
+      { status: 429 },
+    );
   }
 
   let body: { orderId: string };
@@ -92,10 +106,8 @@ export async function POST(req: NextRequest) {
 
   // ── Criar cobrança via Asaas ──
   try {
-    const { createCustomer, getPaymentPixQrCode } = await import(
-      "@/lib/asaas/client"
-    );
-    const { ASAAS_CONFIG } = await import("@/lib/asaas/config");
+    const { createCustomer, createPayment, getPaymentPixQrCode, AsaasApiError } =
+      await import("@/lib/asaas/client");
 
     // Buscar ou criar customer no Asaas
     const user = await currentUser();
@@ -103,20 +115,37 @@ export async function POST(req: NextRequest) {
     const userEmail =
       user?.emailAddresses?.[0]?.emailAddress || "cliente@kathapp.com";
 
-    // Verificar se já tem asaas_customer_id no perfil
+    // F1: o Asaas exige CPF/CNPJ do pagador para gerar PIX. Lemos o cpf do
+    // profile e o enviamos ao criar o customer; sem ele, falhar cedo com
+    // mensagem acionável em vez de deixar o Asaas recusar de forma opaca.
     const { data: profileData } = await supabase
       .from("profiles")
-      .select("asaas_customer_id")
+      .select("asaas_customer_id, cpf")
       .eq("id", userId)
       .single();
 
-    const profile = profileData as unknown as { asaas_customer_id?: string } | null;
+    const profile = profileData as unknown as {
+      asaas_customer_id?: string;
+      cpf?: string | null;
+    } | null;
     let customerId = profile?.asaas_customer_id;
 
     if (!customerId) {
+      const cpfDigits = (profile?.cpf ?? "").replace(/[^0-9]/g, "");
+      if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
+        return NextResponse.json(
+          {
+            error: "cpf_required",
+            message:
+              "Precisamos do seu CPF/CNPJ para gerar o Pix. Conclua um plano ou complete seu perfil com o documento.",
+          },
+          { status: 422 },
+        );
+      }
       const customer = await createCustomer({
         name: userName,
         email: userEmail,
+        cpfCnpj: cpfDigits,
       });
       customerId = customer.id;
 
@@ -132,32 +161,32 @@ export async function POST(req: NextRequest) {
     dueDate.setDate(dueDate.getDate() + 1); // Vence amanhã
     const dueDateStr = dueDate.toISOString().split("T")[0];
 
-    const paymentRes = await fetch(
-      `${ASAAS_CONFIG.baseUrl}/payments`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          access_token: ASAAS_CONFIG.apiKey,
-        },
-        body: JSON.stringify({
-          customer: customerId,
-          billingType: "PIX",
-          value: totalReais,
-          dueDate: dueDateStr,
-          description: `Pedido KathApp Loja #${orderId.substring(0, 8).toUpperCase()}`,
-          externalReference: orderId,
-        }),
-      },
-    );
-
-    if (!paymentRes.ok) {
-      const err = await paymentRes.json().catch(() => ({}));
-      console.error("[loja/payment] Asaas error:", err);
-      throw new Error(`Asaas ${paymentRes.status}: ${JSON.stringify(err)}`);
+    let payment: AsaasPayment;
+    try {
+      payment = await createPayment({
+        customer: customerId,
+        billingType: "PIX",
+        value: totalReais,
+        dueDate: dueDateStr,
+        description: `Pedido KathApp Loja #${orderId.substring(0, 8).toUpperCase()}`,
+        externalReference: orderId,
+      });
+    } catch (asaasErr) {
+      // 4xx do Asaas (ex.: CPF inválido) = causa acionável → 422 com a descrição.
+      if (asaasErr instanceof AsaasApiError && asaasErr.status >= 400 && asaasErr.status < 500) {
+        console.error("[loja/payment] Asaas validation error:", asaasErr.body);
+        return NextResponse.json(
+          {
+            error: "payment_validation",
+            message:
+              asaasErr.description ??
+              "Dados de pagamento recusados. Confira o CPF/CNPJ.",
+          },
+          { status: 422 },
+        );
+      }
+      throw asaasErr; // 5xx/rede → tratado no catch externo (503/manual)
     }
-
-    const payment = await paymentRes.json();
 
     // Buscar QR code Pix
     const pixData = await getPaymentPixQrCode(payment.id);

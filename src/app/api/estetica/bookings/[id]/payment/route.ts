@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
+import { checkRateLimitAsync } from "@/lib/rate-limit";
+import type { AsaasPayment } from "@/lib/asaas/client";
 
 /**
  * POST /api/estetica/bookings/[id]/payment
@@ -15,6 +17,18 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
+
+  // F2: rate limit — cria cobrança no Asaas.
+  const { allowed } = await checkRateLimitAsync(`estetica-payment:${userId}`, {
+    maxRequests: 5,
+    windowMs: 60_000,
+  });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Muitas tentativas. Aguarde 1 minuto." },
+      { status: 429 },
+    );
   }
 
   const supabase = createAdminSupabaseClient();
@@ -79,29 +93,45 @@ export async function POST(
   }
 
   try {
-    const { createCustomer, getPaymentPixQrCode } = await import(
-      "@/lib/asaas/client"
-    );
-    const { ASAAS_CONFIG } = await import("@/lib/asaas/config");
+    const { createCustomer, createPayment, getPaymentPixQrCode, AsaasApiError } =
+      await import("@/lib/asaas/client");
 
     const user = await currentUser();
     const userName = user?.fullName || user?.firstName || "Cliente KathApp";
     const userEmail =
       user?.emailAddresses?.[0]?.emailAddress || "cliente@kathapp.com";
 
+    // F1: PIX exige CPF/CNPJ do pagador. Lê do profile e envia ao criar customer;
+    // sem documento, falha cedo com mensagem acionável.
     const { data: profileData } = await supabase
       .from("profiles")
-      .select("asaas_customer_id")
+      .select("asaas_customer_id, cpf")
       .eq("id", userId)
       .single();
 
     const profile = profileData as unknown as {
       asaas_customer_id?: string;
+      cpf?: string | null;
     } | null;
     let customerId = profile?.asaas_customer_id;
 
     if (!customerId) {
-      const customer = await createCustomer({ name: userName, email: userEmail });
+      const cpfDigits = (profile?.cpf ?? "").replace(/[^0-9]/g, "");
+      if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
+        return NextResponse.json(
+          {
+            error: "cpf_required",
+            message:
+              "Precisamos do seu CPF/CNPJ para gerar o Pix. Complete seu perfil com o documento.",
+          },
+          { status: 422 },
+        );
+      }
+      const customer = await createCustomer({
+        name: userName,
+        email: userEmail,
+        cpfCnpj: cpfDigits,
+      });
       customerId = customer.id;
       await supabase
         .from("profiles")
@@ -113,13 +143,9 @@ export async function POST(
     dueDate.setDate(dueDate.getDate() + 1);
     const dueDateStr = dueDate.toISOString().split("T")[0];
 
-    const paymentRes = await fetch(`${ASAAS_CONFIG.baseUrl}/payments`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        access_token: ASAAS_CONFIG.apiKey,
-      },
-      body: JSON.stringify({
+    let payment: AsaasPayment;
+    try {
+      payment = await createPayment({
         customer: customerId,
         billingType: "PIX",
         value: totalReais,
@@ -128,15 +154,23 @@ export async function POST(
           ? `Kath Estética — Sinal Agendamento #${booking.id.substring(0, 8).toUpperCase()}`
           : `Kath Estética — Agendamento #${booking.id.substring(0, 8).toUpperCase()}`,
         externalReference: `estetica:${booking.id}`,
-      }),
-    });
-
-    if (!paymentRes.ok) {
-      const err = await paymentRes.json().catch(() => ({}));
-      throw new Error(`Asaas ${paymentRes.status}: ${JSON.stringify(err)}`);
+      });
+    } catch (asaasErr) {
+      if (asaasErr instanceof AsaasApiError && asaasErr.status >= 400 && asaasErr.status < 500) {
+        console.error("[estetica/payment] Asaas validation error:", asaasErr.body);
+        return NextResponse.json(
+          {
+            error: "payment_validation",
+            message:
+              asaasErr.description ??
+              "Dados de pagamento recusados. Confira o CPF/CNPJ.",
+          },
+          { status: 422 },
+        );
+      }
+      throw asaasErr;
     }
 
-    const payment = await paymentRes.json();
     const pixData = await getPaymentPixQrCode(payment.id);
 
     await supabase
