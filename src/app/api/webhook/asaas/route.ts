@@ -161,13 +161,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    if (ref.type === "estetica") {
-      await handleEsteticaPayment(supabase, payment, ref.reference_id);
-    } else if (ref.type === "loja") {
-      await handleLojaPayment(supabase, payment, ref.reference_id);
-    } else {
-      // mensalidade
-      await handleMensalidadePayment(supabase, payment, ref.reference_id);
+    try {
+      if (ref.type === "estetica") {
+        await handleEsteticaPayment(supabase, payment, ref.reference_id);
+      } else if (ref.type === "loja") {
+        await handleLojaPayment(supabase, payment, ref.reference_id);
+      } else {
+        // mensalidade
+        await handleMensalidadePayment(supabase, payment, ref.reference_id);
+      }
+    } catch (handlerErr) {
+      // R-A: libera o claim de idempotência para o Asaas reentregar e reprocessar.
+      // As operações de dinheiro são idempotentes (revenue único por asaas_payment_id,
+      // cashback checado por stream, compute_commissions on-conflict), então
+      // reprocessar não duplica. Sem isto, um erro transitório deixaria o
+      // pagamento "pago mas não processado por completo".
+      await supabase.from("webhook_events").delete().eq("payment_id", idempotencyKey);
+      throw handlerErr;
     }
 
     return NextResponse.json({ received: true });

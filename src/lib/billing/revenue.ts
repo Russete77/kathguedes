@@ -35,16 +35,35 @@ export async function recordRevenueStream(input: RecordRevenueInput): Promise<Re
     .insert({ ...input, status: "confirmed" })
     .select()
     .single();
-  if (error || !data) {
-    throw new Error(`[revenue] insert fail: ${error?.message ?? "no data"}`);
+
+  let stream = (data as RevenueStream | null) ?? null;
+
+  if (!stream) {
+    // Idempotência (R-A): se já existe stream para este asaas_payment_id — caso
+    // de reprocessamento do webhook após falha transitória — reusa o existente
+    // em vez de duplicar receita. Garantido pelo índice único parcial
+    // uq_revenue_streams_asaas_payment (migration 26).
+    if (error?.code === "23505" && input.asaas_payment_id) {
+      const { data: existing } = await supabase
+        .from("revenue_streams")
+        .select()
+        .eq("asaas_payment_id", input.asaas_payment_id)
+        .single();
+      stream = (existing as RevenueStream | null) ?? null;
+    }
+    if (!stream) {
+      throw new Error(`[revenue] insert fail: ${error?.message ?? "no data"}`);
+    }
   }
 
+  // compute_commissions é idempotente (on conflict do nothing nas allocations),
+  // então chamá-lo de novo num reprocessamento é seguro.
   const { error: rpcErr } = await supabase.rpc("compute_commissions", {
-    p_revenue_stream_id: data.id,
+    p_revenue_stream_id: stream.id,
   });
   if (rpcErr) throw new Error(`[revenue] commissions fail: ${rpcErr.message}`);
 
-  return data as RevenueStream;
+  return stream;
 }
 
 /**

@@ -58,6 +58,18 @@ export async function creditWalletCents(args: {
 }): Promise<void> {
   if (args.amountCents <= 0) return;
   const supabase = createAdminSupabaseClient();
+
+  // Idempotência (R-A): não creditar duas vezes o mesmo revenue_stream — protege
+  // contra reprocessamento do webhook após falha transitória.
+  const { data: existing } = await supabase
+    .from("wallet_credits")
+    .select("id")
+    .eq("source_revenue_stream_id", args.sourceStreamId)
+    .gt("amount_cents", 0)
+    .limit(1)
+    .maybeSingle();
+  if (existing) return;
+
   const { error } = await supabase.rpc("credit_wallet_cents", {
     p_user_id: args.userId,
     p_amount_cents: args.amountCents,

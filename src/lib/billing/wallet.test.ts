@@ -59,7 +59,18 @@ describe("spendWalletCents", () => {
 });
 
 describe("creditWalletCents", () => {
+  // Mock da checagem de idempotência: .from(...).select().eq().gt().limit().maybeSingle()
+  function mockExistingCredit(existing: { id: string } | null) {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: existing, error: null });
+    const limit = vi.fn().mockReturnValue({ maybeSingle });
+    const gt = vi.fn().mockReturnValue({ limit });
+    const eq = vi.fn().mockReturnValue({ gt });
+    const select = vi.fn().mockReturnValue({ eq });
+    mockFrom.mockReturnValue({ select });
+  }
+
   it("chama RPC com validade default 120 dias", async () => {
+    mockExistingCredit(null);
     mockRpc.mockResolvedValueOnce({ data: null, error: null });
     await creditWalletCents({ userId: "user_1", amountCents: 200, sourceStreamId: "rs_1" });
     expect(mockRpc).toHaveBeenCalledWith("credit_wallet_cents", {
@@ -71,6 +82,7 @@ describe("creditWalletCents", () => {
   });
 
   it("aceita validade custom", async () => {
+    mockExistingCredit(null);
     mockRpc.mockResolvedValueOnce({ data: null, error: null });
     await creditWalletCents({ userId: "user_1", amountCents: 200, sourceStreamId: "rs_1", validityDays: 30 });
     expect(mockRpc).toHaveBeenCalledWith("credit_wallet_cents", {
@@ -84,6 +96,13 @@ describe("creditWalletCents", () => {
   it("nao chama RPC se amountCents <= 0", async () => {
     await creditWalletCents({ userId: "u", amountCents: 0, sourceStreamId: "rs_1" });
     await creditWalletCents({ userId: "u", amountCents: -50, sourceStreamId: "rs_1" });
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("idempotente: nao credita de novo se ja existe credito para o stream", async () => {
+    mockExistingCredit({ id: "wc_existing" });
+    await creditWalletCents({ userId: "user_1", amountCents: 200, sourceStreamId: "rs_1" });
+    expect(mockFrom).toHaveBeenCalledWith("wallet_credits");
     expect(mockRpc).not.toHaveBeenCalled();
   });
 });
