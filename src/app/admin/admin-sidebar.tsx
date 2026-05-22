@@ -49,6 +49,7 @@ const appNav: NavItem[] = [
   { href: "/admin/cupons", label: "Cupons", icon: Tag },
   { href: "/admin/afiliados", label: "Afiliados", icon: ShoppingBag },
   { href: "/admin/assinantes", label: "Assinantes", icon: Users },
+  { href: "/admin/users", label: "Tiers de teste", icon: Users },
   { href: "/admin/consultorias", label: "Consultorias", icon: Settings2 },
   { href: "/admin/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/admin/loja", label: "Loja", icon: ShoppingBag },

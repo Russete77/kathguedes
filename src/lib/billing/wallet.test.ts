@@ -25,7 +25,17 @@ beforeEach(() => {
 });
 
 describe("spendWalletCents", () => {
+  // Mock da checagem de idempotência: .from(...).select().eq().limit().maybeSingle()
+  function mockExistingSpend(existing: { id: string } | null) {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: existing, error: null });
+    const limit = vi.fn().mockReturnValue({ maybeSingle });
+    const eq = vi.fn().mockReturnValue({ limit });
+    const select = vi.fn().mockReturnValue({ eq });
+    mockFrom.mockReturnValue({ select });
+  }
+
   it("chama RPC com args corretos", async () => {
+    mockExistingSpend(null);
     mockRpc.mockResolvedValueOnce({ data: 500, error: null });
     const r = await spendWalletCents({ userId: "user_1", amountCents: 1000, revenueStreamId: "rs_1" });
     expect(mockRpc).toHaveBeenCalledWith("spend_wallet_cents", {
@@ -34,6 +44,14 @@ describe("spendWalletCents", () => {
       p_revenue_stream_id: "rs_1",
     });
     expect(r).toBe(500);
+  });
+
+  it("idempotente: nao gasta de novo se ja existe gasto para o stream", async () => {
+    mockExistingSpend({ id: "wc_spent" });
+    const r = await spendWalletCents({ userId: "user_1", amountCents: 1000, revenueStreamId: "rs_1" });
+    expect(mockFrom).toHaveBeenCalledWith("wallet_credits");
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(r).toBe(0);
   });
 
   it("retorna 0 sem chamar RPC se amountCents <= 0", async () => {

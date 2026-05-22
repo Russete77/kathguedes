@@ -41,6 +41,21 @@ export async function spendWalletCents(args: {
 }): Promise<number> {
   if (args.amountCents <= 0) return 0;
   const supabase = createAdminSupabaseClient();
+
+  // Idempotencia: nao gastar duas vezes para o mesmo revenue_stream. O webhook
+  // pode reprocessar um pagamento (R-A libera o claim em erro transitorio);
+  // spend_wallet_cents marca wallet_credits.spent_on_revenue_stream_id, entao
+  // a presenca de um gasto ja vinculado a este stream encerra cedo.
+  if (args.revenueStreamId) {
+    const { data: already } = await supabase
+      .from("wallet_credits")
+      .select("id")
+      .eq("spent_on_revenue_stream_id", args.revenueStreamId)
+      .limit(1)
+      .maybeSingle();
+    if (already) return 0;
+  }
+
   const { data, error } = await supabase.rpc("spend_wallet_cents", {
     p_user_id: args.userId,
     p_amount_cents: args.amountCents,

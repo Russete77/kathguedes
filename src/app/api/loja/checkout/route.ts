@@ -208,16 +208,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: orderErr?.message ?? "order_create_fail" }, { status: 500 });
     }
 
-    // Gastar cashback (FIFO com lock; se falhar, reverter pedido para evitar inconsistência)
-    if (cashbackUsedCents > 0) {
+    // C3: o pedido nasce `pending`; um PIX abandonado nunca seria pago, e gastar
+    // o saldo agora o queimaria para sempre sem estorno. O `cashback_used_cents`
+    // (saldo ja validado/clampado acima) e debitado em handleLojaPayment, na
+    // confirmacao do pagamento, idempotente (vinculado ao revenue_stream).
+    // EXCECAO: quando o cashback cobre 100% (totalCents === 0) nao havera PIX nem
+    // webhook, entao debitamos agora (com rollback de estoque/pedido em falha).
+    if (cashbackUsedCents > 0 && totalCents === 0) {
       try {
-        await spendWalletCents({
-          userId,
-          amountCents: cashbackUsedCents,
-          revenueStreamId: undefined,
-        });
+        await spendWalletCents({ userId, amountCents: cashbackUsedCents });
       } catch (walletErr) {
-        // Wallet falhou após order criada — log + reverter pedido
         console.error("[loja/checkout] wallet spend failed; rolling back order", walletErr);
         await supabase.from("orders").update({ status: "canceled" }).eq("id", order.id);
         await supabase.rpc("increment_stock_batch", { p_items: stockPayload });

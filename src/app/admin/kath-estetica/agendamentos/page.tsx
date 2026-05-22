@@ -1,5 +1,5 @@
 import { getBookings, getPricingMatrixData } from "../actions";
-import { BookingsKanban } from "./bookings-kanban";
+import { BookingsViewSwitcher } from "./bookings-view-switcher";
 import { NewBookingButton } from "./new-booking-modal";
 
 export const metadata = { title: "Kath Estética · Agendamentos" };
@@ -37,7 +37,7 @@ export default async function AdminEsteticaBookingsPage() {
           <NewBookingButton services={bookableServices} />
         </div>
       </div>
-      <BookingsKanban bookings={bookings as unknown as BookingRow[]} />
+      <BookingsViewSwitcher bookings={bookings as unknown as BookingRow[]} />
     </div>
   );
 }

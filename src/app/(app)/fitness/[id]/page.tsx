@@ -1,4 +1,4 @@
-import { createAdminSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
 import { VideoPlayer } from "@/components/fitness/video-player";
 import { RestTimer } from "@/components/fitness/rest-timer";
@@ -28,7 +28,8 @@ const levelLabels: Record<string, string> = {
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  const supabase = createAdminSupabaseClient();
+  // RLS client: o titulo so vaza se o usuario tiver acesso ao required_plan.
+  const supabase = await createServerSupabaseClient();
   const { data } = await supabase
     .from("workout_videos")
     .select("title")
@@ -40,7 +41,10 @@ export async function generateMetadata({ params }: Props) {
 export default async function WorkoutPage({ params }: Props) {
   const { id } = await params;
   const { userId } = await auth();
-  const supabase = createAdminSupabaseClient();
+  // RLS client: a policy de workout_videos checa plan_tier_level(user) >=
+  // required_plan, entao um treino premium acessado por URL direta retorna
+  // vazio para quem nao tem o plano (C4). Nao usar admin client aqui.
+  const supabase = await createServerSupabaseClient();
 
   const { data: workout } = await supabase
     .from("workout_videos")

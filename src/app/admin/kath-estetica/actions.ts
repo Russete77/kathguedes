@@ -273,12 +273,18 @@ export async function updateBookingStatus(
       const cashbackPct = await getCashbackPct(planTier);
       const earned = Math.floor((bookingRaw.total_cents ?? 0) * cashbackPct / 100);
       if (earned > 0) {
+        // Um booking com sinal+restante tem 2 revenue_streams confirmados; o
+        // .maybeSingle() estourava (multiple rows) e o credito falhava em
+        // silencio. O cashback e calculado sobre total_cents (valor cheio),
+        // entao basta UM stream como chave de idempotencia do credito.
         const { data: rs } = await supabase
           .from("revenue_streams")
           .select("id")
           .eq("type", "estetica")
           .eq("reference_id", id)
           .eq("status", "confirmed")
+          .order("created_at", { ascending: true })
+          .limit(1)
           .maybeSingle();
         if (rs?.id) {
           await creditWalletCents({
@@ -1064,6 +1070,11 @@ export async function createBookingAsAdmin(
     .select("id")
     .single();
   if (insErr || !bookingRaw) {
+    // EXCLUDE constraint (no_overlapping_bookings): horario ja ocupado por outro
+    // booking ativo. Admin-created bookings agora respeitam disponibilidade.
+    if (insErr?.code === "23P01") {
+      throw new Error("Ja existe um agendamento ativo nesse horario. Escolha outro.");
+    }
     // Detalhes para diagnosticar: se mencionar "user_id" ou "created_by_admin",
     // a migration 24 não foi rodada ainda.
     console.error("[createBookingAsAdmin] insert failed", insErr);
@@ -1076,4 +1087,24 @@ export async function createBookingAsAdmin(
 
   revalidatePath("/admin/kath-estetica/agendamentos");
   return { ok: true, bookingId: (bookingRaw as { id: string }).id };
+}
+
+/**
+ * Deleta um agendamento.
+ *
+ * Cascateia em `estetica_loyalty_photos` (fotos da fidelidade vinculadas
+ * a este booking são apagadas). `revenue_streams` permanece — histórico
+ * financeiro do dinheiro recebido NÃO é apagado por esta operação.
+ *
+ * Use com critério: para cancelar sem perder histórico, prefira
+ * `updateBookingStatus(id, "canceled")`. Delete é para limpar testes
+ * ou registros criados por engano.
+ */
+export async function deleteBooking(id: string): Promise<{ ok: true }> {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+  const { error } = await supabase.from("estetica_bookings").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/kath-estetica/agendamentos");
+  return { ok: true };
 }

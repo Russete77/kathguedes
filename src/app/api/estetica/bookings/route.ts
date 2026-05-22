@@ -208,11 +208,24 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error || !booking) {
+      // EXCLUDE constraint (no_overlapping_bookings): outra reserva concorrente
+      // levou o slot entre o get_available_slots e o insert. O DB e a fonte de
+      // verdade contra double-booking, nao o check de leitura acima.
+      if (error?.code === "23P01") {
+        return NextResponse.json(
+          { error: "Horario nao esta mais disponivel" },
+          { status: 409 },
+        );
+      }
       return NextResponse.json({ error: error?.message ?? "create_fail" }, { status: 500 });
     }
 
-    // Gastar cashback apos insert. Se falhar, reverter booking.
-    if (cashbackUsedCents > 0) {
+    // C3: o cashback de um booking `pending` (aguardando sinal/pagamento) e
+    // debitado so na confirmacao do pagamento (handleEsteticaPayment), de forma
+    // idempotente — adiar evita queimar o saldo de um sinal nunca pago.
+    // EXCECAO: quando o cashback cobre 100% (totalCents === 0) o booking ja nasce
+    // confirmado/pago e NAO havera webhook, entao debitamos agora.
+    if (totalCents === 0 && cashbackUsedCents > 0) {
       try {
         await spendWalletCents({ userId, amountCents: cashbackUsedCents });
       } catch (walletErr) {

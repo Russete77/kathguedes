@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
-import { updateBookingStatus, markBookingRemainderPaid } from "../actions";
+import { updateBookingStatus, markBookingRemainderPaid, deleteBooking } from "../actions";
 import { toast } from "sonner";
-import { Gift, Car, Phone, Clock, Loader2, CheckCircle2, Store } from "lucide-react";
+import { Gift, Car, Phone, Clock, Loader2, CheckCircle2, Store, Trash2 } from "lucide-react";
 import { formatPrice, formatDateTime } from "@/lib/estetica/types";
 import type { BookingRow } from "./page";
 
@@ -68,6 +68,26 @@ export function BookingsKanban({ bookings }: { bookings: BookingRow[] }) {
         toast.success(`Restante quitado · ${PAYMENT_METHOD_LABEL[method]}`);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro");
+      }
+    });
+  }
+
+  function handleDelete(b: BookingRow) {
+    const isPaid = !!b.paid_at;
+    const isSignalPaid = !!b.prepay_paid_at;
+    const warning = isPaid
+      ? "ATENÇÃO: este agendamento já foi pago. O dinheiro permanece em revenue_streams, mas o booking some.\n\n"
+      : isSignalPaid
+        ? "ATENÇÃO: este agendamento tem sinal pago. O dinheiro permanece em revenue_streams, mas o booking some.\n\n"
+        : "";
+    const msg = `${warning}Excluir agendamento de ${b.customer_name} (${b.vehicle_plate})?\n\nPara cancelar SEM apagar, use o botão "→ canceled".`;
+    if (!confirm(msg)) return;
+    startTransition(async () => {
+      try {
+        await deleteBooking(b.id);
+        toast.success("Agendamento excluído");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao excluir");
       }
     });
   }
@@ -190,7 +210,7 @@ export function BookingsKanban({ bookings }: { bookings: BookingRow[] }) {
                 </div>
               </div>
 
-              <div className="flex gap-2 flex-wrap pt-3 border-t border-gray-4">
+              <div className="flex gap-2 flex-wrap pt-3 border-t border-gray-4 items-center">
                 <Badge variant="white">{b.status}</Badge>
                 {nextStatusByCurrent[b.status].map((next) => (
                   <button
@@ -203,6 +223,15 @@ export function BookingsKanban({ bookings }: { bookings: BookingRow[] }) {
                     {next}
                   </button>
                 ))}
+                <button
+                  onClick={() => handleDelete(b)}
+                  disabled={pending}
+                  aria-label="Excluir agendamento"
+                  title="Excluir agendamento"
+                  className="ml-auto p-1.5 rounded-full text-gray-3 hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-40"
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
 
               {/* Quitação presencial: aparece quando sinal pago + restante > 0 */}

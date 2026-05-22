@@ -8,7 +8,7 @@ import {
 import { parseExternalReference } from "@/lib/asaas/external-reference";
 import { planTierFromValue, getCashbackPct } from "@/lib/billing/plans";
 import { recordRevenueStream, refundRevenueStream } from "@/lib/billing/revenue";
-import { creditWalletCents } from "@/lib/billing/wallet";
+import { creditWalletCents, spendWalletCents } from "@/lib/billing/wallet";
 import { handleApiError } from "@/lib/api-error";
 import type { PlanTier } from "@/lib/supabase/types";
 
@@ -256,7 +256,7 @@ async function handleEsteticaPayment(
   // O revenue stream sempre registra o valor efetivamente pago neste evento
   // (sinal OU total). Quando o restante for quitado presencialmente, o admin
   // pode lançar manualmente — ou cobrir via futura action de "marcar pago".
-  await recordRevenueStream({
+  const stream = await recordRevenueStream({
     type: "estetica",
     category: isSignalPayment ? "signal" : null,
     user_id: booking.user_id,
@@ -272,6 +272,33 @@ async function handleEsteticaPayment(
     cashback_used_cents: isSignalPayment ? 0 : booking.cashback_used_cents ?? 0,
     occurred_at: nowIso,
   });
+
+  // C3 (estetica): o cashback so e debitado na PRIMEIRA confirmacao de pagamento
+  // (sinal OU total), nunca na criacao do booking `pending` — um sinal nunca pago
+  // queimaria o saldo. Idempotente por booking: como sinal+restante geram streams
+  // distintos em eventos separados, a trava verifica se ja existe gasto vinculado
+  // a qualquer stream deste booking antes de debitar.
+  if ((booking.cashback_used_cents ?? 0) > 0) {
+    const { data: bookingStreams } = await supabase
+      .from("revenue_streams")
+      .select("id")
+      .eq("reference_type", "booking")
+      .eq("reference_id", bookingId);
+    const streamIds = (bookingStreams ?? []).map((s) => s.id);
+    const { data: alreadySpent } = await supabase
+      .from("wallet_credits")
+      .select("id")
+      .in("spent_on_revenue_stream_id", streamIds)
+      .limit(1)
+      .maybeSingle();
+    if (!alreadySpent) {
+      await spendWalletCents({
+        userId: booking.user_id,
+        amountCents: booking.cashback_used_cents ?? 0,
+        revenueStreamId: stream.id,
+      });
+    }
+  }
 
   notifyUser(booking.user_id, {
     title: isSignalPayment ? "Sinal confirmado!" : "Pagamento confirmado!",
@@ -311,7 +338,7 @@ async function handleLojaPayment(
   const totalCost = items.reduce((sum, it) => sum + (it.cost_cents ?? 0) * it.quantity, 0);
   const dominantModule = computeDominantModule(items);
 
-  await recordRevenueStream({
+  const stream = await recordRevenueStream({
     type: "loja",
     category: dominantModule,
     user_id: order.user_id,
@@ -323,6 +350,17 @@ async function handleLojaPayment(
     cashback_used_cents: order.cashback_used_cents ?? 0,
     occurred_at: new Date().toISOString(),
   });
+
+  // C3: o cashback so e debitado AGORA, na confirmacao do pagamento — nunca na
+  // criacao do pedido `pending`. Idempotente: vinculado ao stream (estavel em
+  // reprocessamento), spendWalletCents pula se ja gastou para este stream.
+  if ((order.cashback_used_cents ?? 0) > 0) {
+    await spendWalletCents({
+      userId: order.user_id,
+      amountCents: order.cashback_used_cents ?? 0,
+      revenueStreamId: stream.id,
+    });
+  }
 
   notifyUser(order.user_id, {
     title: "Pagamento confirmado!",
