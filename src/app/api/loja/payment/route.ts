@@ -31,14 +31,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { orderId: string };
+  let body: { orderId: string; cpfCnpj?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
-  const { orderId } = body;
+  const { orderId, cpfCnpj: cpfFromBody } = body;
   if (!orderId) {
     return NextResponse.json({ error: "orderId obrigatório" }, { status: 400 });
   }
@@ -131,13 +131,19 @@ export async function POST(req: NextRequest) {
     let customerId = profile?.asaas_customer_id;
 
     if (!customerId) {
-      const cpfDigits = (profile?.cpf ?? "").replace(/[^0-9]/g, "");
+      // CPF: prioridade body (coletado inline pelo usuário) > profile > vazio
+      const cpfBodyDigits = (cpfFromBody ?? "").replace(/[^0-9]/g, "");
+      const cpfProfileDigits = (profile?.cpf ?? "").replace(/[^0-9]/g, "");
+      const cpfDigits =
+        cpfBodyDigits.length === 11 || cpfBodyDigits.length === 14
+          ? cpfBodyDigits
+          : cpfProfileDigits;
       if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
         return NextResponse.json(
           {
             error: "cpf_required",
             message:
-              "Precisamos do seu CPF/CNPJ para gerar o Pix. Conclua um plano ou complete seu perfil com o documento.",
+              "Precisamos do seu CPF/CNPJ para gerar o Pix. Informe abaixo.",
           },
           { status: 422 },
         );
@@ -149,11 +155,12 @@ export async function POST(req: NextRequest) {
       });
       customerId = customer.id;
 
-      // Salvar no perfil
-      await supabase
-        .from("profiles")
-        .update({ asaas_customer_id: customerId })
-        .eq("id", userId);
+      // Salvar no perfil — customer_id sempre; cpf se veio do body e profile não tinha.
+      const updates: { asaas_customer_id: string; cpf?: string } = {
+        asaas_customer_id: customerId,
+      };
+      if (cpfBodyDigits && !cpfProfileDigits) updates.cpf = cpfDigits;
+      await supabase.from("profiles").update(updates).eq("id", userId);
     }
 
     // Criar cobrança Pix avulsa (não assinatura)

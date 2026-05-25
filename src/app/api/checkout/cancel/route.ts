@@ -1,37 +1,42 @@
 import { auth } from "@clerk/nextjs/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
-import { cancelSubscription } from "@/lib/asaas/client";
+import { cancelSubscription, AsaasApiError } from "@/lib/asaas/client";
 import { NextResponse } from "next/server";
+import { handleApiError } from "@/lib/api-error";
 
 /**
  * POST /api/checkout/cancel
  *
- * Cancels the active subscription for the authenticated user.
+ * Cancela a subscription do user no Asaas mas MANTÉM o acesso até `subscription_ends_at`
+ * (o último ciclo já cobrado). O downgrade efetivo para `free` acontece quando o webhook
+ * Asaas emite `SUBSCRIPTION_DELETED`/`PAYMENT_DELETED` ou quando um cron varre vencidos.
  *
- * Returns:
- *   - ok: true
+ * Retorno:
+ *   - { ok: true, accessUntil: ISO } — assinatura cancelada no Asaas; usuário mantém o tier
+ *     até `accessUntil`.
+ *   - 4xx: erro do Asaas (cancel já feito, subscription inexistente, etc.) com causa real.
  */
+
+const SAFE_ASAAS_HINTS = ["subscription", "assinatura", "cancel"];
+
+function safeAsaasMessage(err: AsaasApiError): string {
+  const raw = err.description ?? "";
+  const lower = raw.toLowerCase();
+  if (SAFE_ASAAS_HINTS.some((h) => lower.includes(h))) return raw;
+  return "Asaas recusou o cancelamento";
+}
 
 export async function POST() {
   try {
-    // 1. Verify auth
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 2. Get user profile.
-    // Admin client (service_role): a leitura é do próprio profile (filtrado por id,
-    // userId vem autenticado do Clerk) e o downgrade abaixo mexe em colunas de
-    // assinatura — que o trigger guard_profile_sensitive_columns só permite a
-    // service_role. RLS aqui causaria "Profile not found" e o trigger bloquearia o update.
     const supabase = createAdminSupabaseClient();
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("asaas_subscription_id")
+      .select("asaas_subscription_id, subscription_ends_at, plan_tier")
       .eq("id", userId)
       .single();
 
@@ -41,10 +46,7 @@ export async function POST() {
         code: profileError?.code,
         message: profileError?.message,
       });
-      return NextResponse.json(
-        { error: "Profile not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
     const subscriptionId = profile.asaas_subscription_id;
@@ -55,25 +57,35 @@ export async function POST() {
       );
     }
 
-    // 3. Cancel subscription with Asaas
-    await cancelSubscription(subscriptionId);
+    try {
+      await cancelSubscription(subscriptionId);
+    } catch (err) {
+      if (err instanceof AsaasApiError) {
+        return NextResponse.json(
+          { error: safeAsaasMessage(err), code: "asaas_cancel_refused" },
+          { status: err.status >= 400 && err.status < 500 ? err.status : 502 }
+        );
+      }
+      throw err;
+    }
 
-    // 4. Update profile
+    // Limpa o vínculo Asaas mas MANTÉM o tier e o ends_at. O usuário continua com o que
+    // pagou até a data; depois o webhook (SUBSCRIPTION_DELETED já cobre) ou cron varrem
+    // para `free`.
     await supabase
       .from("profiles")
       .update({
-        plan_tier: "free",
         subscription_status: "canceled",
         asaas_subscription_id: null,
       })
       .eq("id", userId);
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      accessUntil: profile.subscription_ends_at,
+      planTier: profile.plan_tier,
+    });
   } catch (error) {
-    console.error("[checkout/cancel]", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(error, "checkout/cancel");
   }
 }

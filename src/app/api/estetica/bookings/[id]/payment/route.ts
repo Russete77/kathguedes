@@ -19,6 +19,14 @@ export async function POST(
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
+  let body: { cpfCnpj?: string } = {};
+  try {
+    body = (await req.json()) as { cpfCnpj?: string };
+  } catch {
+    // body opcional — sem cpfCnpj significa "usar o do profile"
+  }
+  const cpfFromBody = body?.cpfCnpj;
+
   // F2: rate limit — cria cobrança no Asaas.
   const { allowed } = await checkRateLimitAsync(`estetica-payment:${userId}`, {
     maxRequests: 5,
@@ -116,13 +124,18 @@ export async function POST(
     let customerId = profile?.asaas_customer_id;
 
     if (!customerId) {
-      const cpfDigits = (profile?.cpf ?? "").replace(/[^0-9]/g, "");
+      const cpfBodyDigits = (cpfFromBody ?? "").replace(/[^0-9]/g, "");
+      const cpfProfileDigits = (profile?.cpf ?? "").replace(/[^0-9]/g, "");
+      const cpfDigits =
+        cpfBodyDigits.length === 11 || cpfBodyDigits.length === 14
+          ? cpfBodyDigits
+          : cpfProfileDigits;
       if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
         return NextResponse.json(
           {
             error: "cpf_required",
             message:
-              "Precisamos do seu CPF/CNPJ para gerar o Pix. Complete seu perfil com o documento.",
+              "Precisamos do seu CPF/CNPJ para gerar o Pix. Informe abaixo.",
           },
           { status: 422 },
         );
@@ -133,10 +146,11 @@ export async function POST(
         cpfCnpj: cpfDigits,
       });
       customerId = customer.id;
-      await supabase
-        .from("profiles")
-        .update({ asaas_customer_id: customerId })
-        .eq("id", userId);
+      const updates: { asaas_customer_id: string; cpf?: string } = {
+        asaas_customer_id: customerId,
+      };
+      if (cpfBodyDigits && !cpfProfileDigits) updates.cpf = cpfDigits;
+      await supabase.from("profiles").update(updates).eq("id", userId);
     }
 
     const dueDate = new Date();

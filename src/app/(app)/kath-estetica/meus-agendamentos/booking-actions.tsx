@@ -20,28 +20,75 @@ interface PixData {
   total: number;
 }
 
+function digitsOnly(v: string): string {
+  return v.replace(/\D/g, "");
+}
+
+function formatCpfCnpj(v: string): string {
+  const d = digitsOnly(v);
+  if (d.length <= 11) {
+    return d
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+  return d
+    .slice(0, 14)
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2}\.\d{3})(\d)/, "$1.$2")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+}
+
 export function BookingActions({ booking }: Props) {
   const [pix, setPix] = useState<PixData | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUploaded, setPhotoUploaded] = useState(false);
+  const [needCpf, setNeedCpf] = useState<string | null>(null);
+  const [cpfInput, setCpfInput] = useState("");
+  const [cpfError, setCpfError] = useState<string | null>(null);
 
-  async function generatePix() {
+  async function callPayment(cpfDigits?: string) {
     setLoading(true);
     try {
       const res = await fetch(
         `/api/estetica/bookings/${booking.id}/payment`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(cpfDigits ? { cpfCnpj: cpfDigits } : {}),
+        },
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro");
+      if (res.status === 422 && data?.error === "cpf_required") {
+        setNeedCpf(data.message ?? "Informe seu CPF/CNPJ para gerar o Pix.");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || data.message || "Erro");
+      setNeedCpf(null);
       setPix(data);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao gerar Pix");
     } finally {
       setLoading(false);
     }
+  }
+
+  function generatePix() {
+    return callPayment();
+  }
+
+  async function submitCpf(e: React.FormEvent) {
+    e.preventDefault();
+    const d = digitsOnly(cpfInput);
+    if (d.length !== 11 && d.length !== 14) {
+      setCpfError("CPF (11 dígitos) ou CNPJ (14 dígitos) inválido.");
+      return;
+    }
+    setCpfError(null);
+    await callPayment(d);
   }
 
   async function copyPayload() {
@@ -83,7 +130,33 @@ export function BookingActions({ booking }: Props) {
   if (booking.status === "pending" && !booking.loyalty_free) {
     return (
       <div className="pt-3 border-t border-gray-4">
-        {!pix ? (
+        {needCpf ? (
+          <form onSubmit={submitCpf} className="space-y-3">
+            <div>
+              <label htmlFor={`cpf-est-${booking.id}`} className="text-[11px] text-gray-3 font-mono tracking-[0.1em] uppercase mb-1 block">
+                CPF / CNPJ
+              </label>
+              <input
+                id={`cpf-est-${booking.id}`}
+                inputMode="numeric"
+                autoComplete="off"
+                value={cpfInput}
+                onChange={(e) => {
+                  setCpfInput(formatCpfCnpj(e.target.value));
+                  if (cpfError) setCpfError(null);
+                }}
+                placeholder="000.000.000-00"
+                className="w-full bg-bg-2 border border-gray-4 rounded-lg px-3 py-2.5 text-white text-sm font-mono focus:border-pink focus:outline-none"
+              />
+              {cpfError && <p className="text-danger text-xs mt-1">{cpfError}</p>}
+              <p className="text-[10px] text-gray-3 mt-1">{needCpf}</p>
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
+              {loading ? "Gerando..." : "Gerar Pix"}
+            </Button>
+          </form>
+        ) : !pix ? (
           <Button onClick={generatePix} disabled={loading} className="w-full">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
             {loading ? "Gerando..." : "Pagar via Pix"}

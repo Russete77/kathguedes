@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Loader2, Copy, Check, QrCode, ExternalLink } from "lucide-react";
@@ -10,16 +10,40 @@ import Link from "next/link";
 interface PaymentData {
   method: "asaas_pix" | "manual_pix";
   total: number;
-  // Asaas Pix
   paymentId?: string;
   invoiceUrl?: string;
-  pixQrCode?: string; // base64
-  pixPayload?: string; // copia e cola
+  pixQrCode?: string;
+  pixPayload?: string;
   expirationDate?: string;
-  // Manual Pix
   pixKey?: string | null;
   pixName?: string;
   instructions?: string;
+}
+
+type PanelState =
+  | { stage: "loading" }
+  | { stage: "need-cpf"; message: string }
+  | { stage: "paid"; data: PaymentData }
+  | { stage: "error"; message: string };
+
+function digitsOnly(v: string): string {
+  return v.replace(/\D/g, "");
+}
+
+function formatCpfCnpj(v: string): string {
+  const d = digitsOnly(v);
+  if (d.length <= 11) {
+    return d
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+  return d
+    .slice(0, 14)
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2}\.\d{3})(\d)/, "$1.$2")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
 }
 
 export function PaymentPanel({
@@ -29,37 +53,64 @@ export function PaymentPanel({
   orderId: string;
   totalCents: number;
 }) {
-  const [loading, setLoading] = useState(true);
-  const [payment, setPayment] = useState<PaymentData | null>(null);
+  const [state, setState] = useState<PanelState>({ stage: "loading" });
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [cpfInput, setCpfInput] = useState("");
+  const [cpfError, setCpfError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    async function fetchPayment() {
+  const requestPayment = useCallback(
+    async (cpfDigits?: string) => {
+      setSubmitting(true);
       try {
         const res = await fetch("/api/loja/payment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId }),
+          body: JSON.stringify({ orderId, ...(cpfDigits ? { cpfCnpj: cpfDigits } : {}) }),
         });
 
+        if (res.status === 422) {
+          const err = await res.json().catch(() => ({}));
+          if (err?.error === "cpf_required") {
+            setState({
+              stage: "need-cpf",
+              message: err.message ?? "Informe seu CPF/CNPJ para gerar o Pix.",
+            });
+            return;
+          }
+        }
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Erro ao gerar pagamento");
+          throw new Error(err.message || err.error || "Erro ao gerar pagamento");
         }
-
-        const data = await res.json();
-        setPayment(data);
+        const data = (await res.json()) as PaymentData;
+        setState({ stage: "paid", data });
       } catch (err) {
-        console.error("Payment error:", err);
-        setError(err instanceof Error ? err.message : "Erro ao gerar pagamento");
+        setState({
+          stage: "error",
+          message: err instanceof Error ? err.message : "Erro ao gerar pagamento",
+        });
       } finally {
-        setLoading(false);
+        setSubmitting(false);
       }
-    }
+    },
+    [orderId]
+  );
 
-    fetchPayment();
-  }, [orderId]);
+  useEffect(() => {
+    requestPayment();
+  }, [requestPayment]);
+
+  const handleSubmitCpf = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const d = digitsOnly(cpfInput);
+    if (d.length !== 11 && d.length !== 14) {
+      setCpfError("CPF (11 dígitos) ou CNPJ (14 dígitos) inválido.");
+      return;
+    }
+    setCpfError(null);
+    await requestPayment(d);
+  };
 
   async function copyPix(text: string) {
     try {
@@ -74,7 +125,7 @@ export function PaymentPanel({
 
   const totalFormatted = `R$ ${(totalCents / 100).toFixed(2).replace(".", ",")}`;
 
-  if (loading) {
+  if (state.stage === "loading") {
     return (
       <div className="bg-bg-1 border border-gray-4 rounded-[22px] p-8 text-center">
         <Loader2 size={32} className="animate-spin stroke-pink mx-auto mb-3" />
@@ -83,11 +134,56 @@ export function PaymentPanel({
     );
   }
 
-  if (error) {
+  if (state.stage === "need-cpf") {
+    return (
+      <form
+        onSubmit={handleSubmitCpf}
+        className="bg-bg-1 border border-pink/30 rounded-[22px] p-6 space-y-4"
+      >
+        <div>
+          <h2 className="font-display text-xl text-white mb-1">CPF / CNPJ</h2>
+          <p className="text-gray-3 text-sm">{state.message}</p>
+        </div>
+        <div>
+          <label htmlFor="cpf-loja" className="text-gray-3 text-xs uppercase tracking-wider font-semibold mb-1 block">
+            Documento do pagador
+          </label>
+          <input
+            id="cpf-loja"
+            inputMode="numeric"
+            autoComplete="off"
+            value={cpfInput}
+            onChange={(e) => {
+              setCpfInput(formatCpfCnpj(e.target.value));
+              if (cpfError) setCpfError(null);
+            }}
+            placeholder="000.000.000-00"
+            className="w-full bg-bg-2 border border-gray-4 rounded-lg px-4 py-3 text-white text-base font-mono focus:border-pink focus:outline-none"
+          />
+          {cpfError && <p className="text-danger text-xs mt-1">{cpfError}</p>}
+        </div>
+        <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+          {submitting ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> Gerando Pix...
+            </>
+          ) : (
+            "Gerar Pix"
+          )}
+        </Button>
+        <p className="text-gray-3 text-xs">
+          O CPF/CNPJ vai pra cobrança do Pix (Asaas) — exigência do BACEN. Salvamos no seu
+          perfil para os próximos pagamentos.
+        </p>
+      </form>
+    );
+  }
+
+  if (state.stage === "error") {
     return (
       <div className="bg-bg-1 border border-yellow-500/30 rounded-[22px] p-6">
         <p className="text-yellow-400 font-semibold mb-2">Erro ao gerar pagamento</p>
-        <p className="text-gray-2 text-sm mb-4">{error}</p>
+        <p className="text-gray-2 text-sm mb-4">{state.message}</p>
         <p className="text-gray-3 text-sm">
           Entre em contato pelo WhatsApp para finalizar o pagamento manualmente.
         </p>
@@ -95,8 +191,9 @@ export function PaymentPanel({
     );
   }
 
-  // Asaas Pix (automático)
-  if (payment?.method === "asaas_pix") {
+  const payment = state.data;
+
+  if (payment.method === "asaas_pix") {
     return (
       <div className="bg-bg-1 border border-pink/30 rounded-[22px] p-6 space-y-5">
         <div className="text-center">
@@ -106,7 +203,6 @@ export function PaymentPanel({
           </p>
         </div>
 
-        {/* QR Code */}
         {payment.pixQrCode && (
           <div className="flex justify-center">
             <div className="bg-white rounded-2xl p-4 inline-block">
@@ -122,13 +218,11 @@ export function PaymentPanel({
           </div>
         )}
 
-        {/* Total */}
         <div className="text-center">
           <p className="text-gray-3 text-xs uppercase tracking-wider mb-1">Valor</p>
           <p className="font-display text-3xl text-pink">{totalFormatted}</p>
         </div>
 
-        {/* Pix Copia e Cola */}
         {payment.pixPayload && (
           <div className="space-y-2">
             <p className="text-gray-3 text-xs uppercase tracking-wider font-semibold">
@@ -152,7 +246,6 @@ export function PaymentPanel({
           </div>
         )}
 
-        {/* Invoice URL */}
         {payment.invoiceUrl && (
           <a
             href={payment.invoiceUrl}
@@ -193,25 +286,22 @@ export function PaymentPanel({
     );
   }
 
-  // Manual Pix (fallback sem Asaas)
   return (
     <div className="bg-bg-1 border border-pink/30 rounded-[22px] p-6 space-y-5">
       <div className="text-center">
         <QrCode size={48} className="stroke-pink mx-auto mb-3" />
         <h2 className="font-display text-xl text-white mb-1">PAGUE VIA PIX</h2>
         <p className="text-gray-3 text-sm">
-          {payment?.instructions || "Faça um Pix no valor abaixo e envie o comprovante."}
+          {payment.instructions || "Faça um Pix no valor abaixo e envie o comprovante."}
         </p>
       </div>
 
-      {/* Total */}
       <div className="text-center">
         <p className="text-gray-3 text-xs uppercase tracking-wider mb-1">Valor</p>
         <p className="font-display text-3xl text-pink">{totalFormatted}</p>
       </div>
 
-      {/* Pix Key */}
-      {payment?.pixKey && (
+      {payment.pixKey && (
         <div className="space-y-2">
           <p className="text-gray-3 text-xs uppercase tracking-wider font-semibold">
             Chave Pix

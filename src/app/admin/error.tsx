@@ -2,13 +2,8 @@
 
 import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
+import * as Sentry from "@sentry/nextjs";
 
-/**
- * Error boundary do painel admin.
- * Captura erros lançados em server actions / page rendering / async errors do admin.
- * Por enquanto loga local; quando Sentry frontend for instalado, adicionar
- * Sentry.captureException(error) aqui.
- */
 export default function AdminError({
   error,
   reset,
@@ -18,6 +13,7 @@ export default function AdminError({
 }) {
   useEffect(() => {
     console.error("[AdminError]", error);
+    Sentry.captureException(error, { tags: { surface: "admin" } });
   }, [error]);
 
   return (

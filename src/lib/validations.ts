@@ -137,6 +137,47 @@ export const updateConsultationSchema = z.object({
   notes_admin: z.string().max(5000).optional(),
 });
 
+// ── Anamnese (form de consultoria) ──
+export const anamneseSchema = z.object({
+  fullName: z.string().trim().max(200).optional(),
+  birthDate: z.string().trim().max(20).optional(),
+  biologicalSex: z.string().trim().max(40).optional(),
+  weight: z.coerce.number().positive().max(500).optional(),
+  height: z.coerce.number().positive().max(300).optional(),
+  waistCircumference: z.coerce.number().positive().max(500).optional(),
+  hipCircumference: z.coerce.number().positive().max(500).optional(),
+  primaryObjective: z.string().trim().max(500).optional(),
+  secondaryObjective: z.string().trim().max(500).optional(),
+  trainingLevel: z.string().trim().max(80).optional(),
+  trainingTime: z.string().trim().max(80).optional(),
+  weeklyFrequency: z.string().trim().max(40).optional(),
+  sessionDuration: z.string().trim().max(40).optional(),
+  trainingLocation: z.string().trim().max(120).optional(),
+  equipment: z.array(z.string().max(80)).max(40).optional(),
+  preferredTime: z.string().trim().max(80).optional(),
+  mealsPerDay: z.string().trim().max(40).optional(),
+  proteinEveryMeal: z.string().trim().max(40).optional(),
+  drinksEnoughWater: z.string().trim().max(40).optional(),
+  waterLiters: z.coerce.number().nonnegative().max(20).optional(),
+  dietaryRestrictions: z.array(z.string().max(80)).max(40).optional(),
+  foodAllergies: z.string().trim().max(1000).optional(),
+  supplements: z.string().trim().max(2000).optional(),
+  injuries: z.string().trim().max(2000).optional(),
+  chronicDiseases: z.string().trim().max(2000).optional(),
+  medications: z.string().trim().max(2000).optional(),
+  sleepQuality: z.string().trim().max(80).optional(),
+  sleepHours: z.string().trim().max(40).optional(),
+  stressLevel: z.string().trim().max(80).optional(),
+  occupation: z.string().trim().max(200).optional(),
+  additionalNotes: z.string().trim().max(5000).optional(),
+  submittedAt: z.string().trim().max(40).optional(),
+}).strict();
+
+export const submitAnamneseSchema = z.object({
+  consultationId: z.string().uuid(),
+  anamnesis: anamneseSchema,
+});
+
 // ── Order Status ──
 export const updateOrderStatusSchema = z.object({
   id: z.string().uuid(),

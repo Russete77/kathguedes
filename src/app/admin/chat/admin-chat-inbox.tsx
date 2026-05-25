@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useSupabase } from "@/lib/supabase/client";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Send, Loader2, MessageCircle, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Message } from "@/hooks/use-realtime-messages";
+import {
+  listAdminThreadMessages,
+  pollAdminThreadMessages,
+  sendAdminMessage,
+  markThreadAsRead,
+} from "./actions";
 
 interface Conversation {
   user_id: string;
@@ -14,10 +18,20 @@ interface Conversation {
   avatar_url: string | null;
   last_message: string;
   last_at: string;
-  /** Última mensagem foi enviada pela equipe (não pelo user) */
   last_from_team: boolean;
   unread: number;
 }
+
+interface Message {
+  id: string;
+  user_id: string;
+  body: string;
+  sender_role: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+const POLL_MS = 4000;
 
 export function AdminChatInbox({
   conversations,
@@ -37,7 +51,6 @@ export function AdminChatInbox({
 
   return (
     <div className="flex gap-4 h-[calc(100vh-220px)]">
-      {/* Sidebar — conversation list */}
       <div
         className={cn(
           "w-[300px] bg-bg-1 border border-gray-4 rounded-[14px] overflow-y-auto shrink-0",
@@ -74,13 +87,7 @@ export function AdminChatInbox({
         ))}
       </div>
 
-      {/* Chat area */}
-      <div
-        className={cn(
-          "flex-1 flex flex-col",
-          !selected && "hidden lg:flex"
-        )}
-      >
+      <div className={cn("flex-1 flex flex-col", !selected && "hidden lg:flex")}>
         {!selected ? (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-gray-3">Selecione uma conversa</p>
@@ -108,56 +115,68 @@ function AdminChatThread({
   userName: string;
   onBack: () => void;
 }) {
-  const supabase = useSupabase();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [senderRole, setSenderRole] = useState<"kath" | "sidney">("kath");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastSeenIso = useRef<string | null>(null);
 
-  // Fetch messages
+  const mergeNew = useCallback((incoming: Message[]) => {
+    if (!incoming.length) return;
+    setMessages((prev) => {
+      const seen = new Set(prev.map((m) => m.id));
+      const merged = [...prev];
+      for (const m of incoming) {
+        if (!seen.has(m.id)) merged.push(m);
+      }
+      return merged;
+    });
+    lastSeenIso.current = incoming[incoming.length - 1]!.created_at;
+  }, []);
+
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    supabase
-      .from("messages")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: true })
-      .then(({ data }) => {
-        if (data) setMessages(data as Message[]);
-        setLoading(false);
-      });
-  }, [supabase, userId]);
-
-  // Realtime
-  useEffect(() => {
-    const channel = supabase
-      .channel(`admin-chat-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const msg = payload.new as Message;
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === msg.id)) return prev;
-            return [...prev, msg];
-          });
+    setMessages([]);
+    lastSeenIso.current = null;
+    listAdminThreadMessages(userId)
+      .then((data) => {
+        if (cancelled) return;
+        setMessages(data);
+        if (data.length) {
+          lastSeenIso.current = data[data.length - 1]!.created_at;
         }
-      )
-      .subscribe();
-
+        return markThreadAsRead({ userId }).catch(() => {});
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
     };
-  }, [supabase, userId]);
+  }, [userId]);
 
-  // Auto-scroll
+  useEffect(() => {
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const fresh = await pollAdminThreadMessages(userId, lastSeenIso.current);
+        if (!cancelled && fresh.length) {
+          mergeNew(fresh);
+          markThreadAsRead({ userId }).catch(() => {});
+        }
+      } catch {
+        // silencia — proxima janela tenta de novo
+      }
+    }, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [userId, mergeNew]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -166,17 +185,16 @@ function AdminChatThread({
     e.preventDefault();
     const body = input.trim();
     if (!body) return;
-
     setSending(true);
     setInput("");
     try {
-      await supabase.from("messages").insert({
-        user_id: userId,
+      const inserted = await sendAdminMessage({
+        userId,
         body,
-        sender_role: senderRole,
+        senderRole,
       });
+      mergeNew([inserted]);
 
-      // Push notification para o assinante
       const senderName = senderRole === "kath" ? "Kath" : "Sidney";
       fetch("/api/push/send", {
         method: "POST",
@@ -197,7 +215,6 @@ function AdminChatThread({
 
   return (
     <>
-      {/* Header */}
       <div className="flex items-center gap-3 pb-3 border-b border-gray-4 mb-3">
         <button
           onClick={onBack}
@@ -213,7 +230,6 @@ function AdminChatThread({
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1">
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -268,7 +284,6 @@ function AdminChatThread({
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <form onSubmit={handleSend} className="mt-3 flex gap-2 items-end">
         <select
           value={senderRole}

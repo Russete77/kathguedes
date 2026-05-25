@@ -1474,6 +1474,10 @@ export type Database = {
         Returns: number
       }
       plan_tier_level: { Args: { tier: string }; Returns: number }
+      try_increment_affiliate_click: {
+        Args: { p_user_id: string; p_year_month: string; p_limit: number | null }
+        Returns: { allowed: boolean; new_count: number }[]
+      }
     }
     Enums: {
       [_ in never]: never

@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
+import { submitAnamneseSchema } from "@/lib/validations";
+import { handleApiError } from "@/lib/api-error";
 import type { Json } from "@/lib/supabase/database.types";
 
 /**
@@ -8,45 +10,60 @@ import type { Json } from "@/lib/supabase/database.types";
  * Salva anamnese na consultoria e muda status pra in_progress.
  */
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  }
-
-  let body: { consultationId: string; anamnesis: Record<string, unknown> };
   try {
-    body = await req.json();
-    if (!body.consultationId || !body.anamnesis) throw new Error();
-  } catch {
-    return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    }
+
+    let raw: unknown;
+    try {
+      raw = await req.json();
+    } catch {
+      return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+    }
+
+    const parsed = submitAnamneseSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Dados inválidos", details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const { consultationId, anamnesis } = parsed.data;
+    const supabase = createAdminSupabaseClient();
+
+    const { data: consultation } = await supabase
+      .from("consultations")
+      .select("id, user_id")
+      .eq("id", consultationId)
+      .eq("user_id", userId)
+      .single();
+
+    if (!consultation) {
+      return NextResponse.json({ error: "Consultoria não encontrada" }, { status: 404 });
+    }
+
+    const submitted = {
+      ...anamnesis,
+      submittedAt: anamnesis.submittedAt ?? new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("consultations")
+      .update({
+        anamnesis: submitted as unknown as Json,
+        status: "in_progress",
+      })
+      .eq("id", consultationId);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return handleApiError(err, "POST /api/consultoria/anamnese");
   }
-
-  const supabase = createAdminSupabaseClient();
-
-  // Verificar que a consultoria pertence ao usuário
-  const { data: consultation } = await supabase
-    .from("consultations")
-    .select("id, user_id")
-    .eq("id", body.consultationId)
-    .eq("user_id", userId)
-    .single();
-
-  if (!consultation) {
-    return NextResponse.json({ error: "Consultoria não encontrada" }, { status: 404 });
-  }
-
-  // Salvar anamnese e mudar status
-  const { error } = await supabase
-    .from("consultations")
-    .update({
-      anamnesis: body.anamnesis as unknown as Json,
-      status: "in_progress",
-    })
-    .eq("id", body.consultationId);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true });
 }
