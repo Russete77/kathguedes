@@ -28,12 +28,13 @@ export function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
-        // `relative` no .month ancora o .nav (absolute) dentro do calendario —
-        // sem isso as setinhas escapam pro primeiro ancestor positionado (modal/body),
-        // aparecendo no topo da pagina (DayPicker v10 renderiza .nav como irmao
-        // de .month_caption, nao como filho).
-        months: "flex flex-col sm:flex-row gap-4",
-        month: "relative space-y-3",
+        // DayPicker v10 (default navLayout): <Nav> renderiza como FILHO de .months
+        // e IRMAO de .month — NAO dentro de .month. Por isso `relative` precisa
+        // estar em .months pra ancorar as setinhas. Com `relative` em .month as
+        // setinhas escapam pelo proximo ancestor positionado (modal/body) e
+        // aparecem no topo da pagina.
+        months: "relative flex flex-col sm:flex-row gap-4",
+        month: "space-y-3",
         month_caption: "flex justify-center pt-1 items-center",
         caption_label: "text-sm font-semibold text-white",
         // Nav sobrepoe a caption: linha do topo do mes, prev/next nos cantos,
