@@ -6,7 +6,7 @@ import { WorkoutFilters } from "@/components/fitness/workout-filters";
 import { StreakBadge } from "@/components/fitness/streak-badge";
 import { PlayCircle } from "lucide-react";
 import { Suspense } from "react";
-import { PLAN_LEVELS, planLevel } from "@/lib/billing/access";
+import { planLevel } from "@/lib/billing/access";
 import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata: Metadata = {
@@ -41,25 +41,21 @@ export default async function FitnessPage({ searchParams }: Props) {
 
   const userTier = ((profile?.plan_tier as string) || "free") as PlanTier;
   const userLevel = planLevel(userTier);
-  const allowedTiers = (Object.keys(PLAN_LEVELS) as PlanTier[]).filter(
-    (t) => PLAN_LEVELS[t] <= userLevel,
-  );
 
-  // Categorias que tem AO MENOS UM video publicado E acessivel ao plano do user —
-  // calculadas em paralelo com a query principal pra nao adicionar latencia.
-  // Query separada (sem filtros de cat/lvl) pra que o conjunto de botoes nao mude
-  // conforme o user filtra.
+  // Mostramos TODOS os treinos publicados (independentemente do plano) — quem
+  // nao tem acesso ve o card com cadeado e link pra /planos. Antes filtravamos
+  // por allowedTiers e o user achava que so existia conteudo do plano dele.
+  // O gate de seguranca real esta em /fitness/[id] (notFound se locked) e nas
+  // policies RLS — aqui eh apenas exibicao do catalogo.
   const allWorkoutsForCategoriesPromise = admin
     .from("workout_videos")
     .select("category")
-    .eq("is_published", true)
-    .in("required_plan", allowedTiers);
+    .eq("is_published", true);
 
   let query = admin
     .from("workout_videos")
     .select("*")
     .eq("is_published", true)
-    .in("required_plan", allowedTiers)
     .order("published_at", { ascending: false });
 
   if (cat) query = query.eq("category", cat);
@@ -112,19 +108,23 @@ export default async function FitnessPage({ searchParams }: Props) {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {workouts.map((w) => (
-            <WorkoutCard
-              key={w.id}
-              id={w.id}
-              title={w.title}
-              youtube_id={w.youtube_id}
-              category={w.category}
-              level={w.level}
-              duration_minutes={w.duration_minutes}
-              required_plan={w.required_plan}
-              views_count={w.views_count}
-            />
-          ))}
+          {workouts.map((w) => {
+            const isLocked = planLevel(w.required_plan as PlanTier) > userLevel;
+            return (
+              <WorkoutCard
+                key={w.id}
+                id={w.id}
+                title={w.title}
+                youtube_id={w.youtube_id}
+                category={w.category}
+                level={w.level}
+                duration_minutes={w.duration_minutes}
+                required_plan={w.required_plan}
+                views_count={w.views_count}
+                isLocked={isLocked}
+              />
+            );
+          })}
         </div>
       )}
     </div>
