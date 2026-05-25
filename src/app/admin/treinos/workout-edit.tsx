@@ -81,6 +81,7 @@ export function WorkoutEdit({ workout }: { workout: Workout }) {
                 <SelectContent className="bg-bg-2 border-gray-4 max-h-[300px]">
                   <SelectItem value="gluteo">Glúteos</SelectItem>
                   <SelectItem value="pernas">Pernas</SelectItem>
+                  <SelectItem value="quadriceps">Quadríceps</SelectItem>
                   <SelectItem value="costas">Costas</SelectItem>
                   <SelectItem value="ombro">Ombro</SelectItem>
                   <SelectItem value="peito">Peito</SelectItem>
@@ -88,6 +89,7 @@ export function WorkoutEdit({ workout }: { workout: Workout }) {
                   <SelectItem value="triceps">Tríceps</SelectItem>
                   <SelectItem value="abdomen">Abdômen</SelectItem>
                   <SelectItem value="superior">Superior Completo</SelectItem>
+                  <SelectItem value="inferior">Inferior Completo</SelectItem>
                   <SelectItem value="hiit">HIIT</SelectItem>
                   <SelectItem value="cardio">Cardio</SelectItem>
                   <SelectItem value="funcional">Funcional</SelectItem>

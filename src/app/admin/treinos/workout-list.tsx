@@ -33,10 +33,23 @@ interface WorkoutRow {
 const categoryLabels: Record<string, string> = {
   gluteo: "Glúteos",
   pernas: "Pernas",
+  quadriceps: "Quadríceps",
+  costas: "Costas",
+  ombro: "Ombro",
+  peito: "Peito",
+  biceps: "Bíceps",
+  triceps: "Tríceps",
+  abdomen: "Abdômen",
   superior: "Superior",
+  inferior: "Inferior",
   hiit: "HIIT",
+  cardio: "Cardio",
+  funcional: "Funcional",
   full: "Completo",
+  alongamento: "Alongamento",
+  aquecimento: "Aquecimento",
   viagem: "Viagem",
+  competicao: "Competição",
 };
 
 const levelLabels: Record<string, string> = {

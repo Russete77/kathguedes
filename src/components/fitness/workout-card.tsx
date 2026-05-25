@@ -18,10 +18,23 @@ interface WorkoutCardProps {
 const categoryLabels: Record<string, string> = {
   gluteo: "GLÚTEOS",
   pernas: "PERNAS",
+  quadriceps: "QUADRÍCEPS",
+  costas: "COSTAS",
+  ombro: "OMBRO",
+  peito: "PEITO",
+  biceps: "BÍCEPS",
+  triceps: "TRÍCEPS",
+  abdomen: "ABDÔMEN",
   superior: "SUPERIOR",
+  inferior: "INFERIOR",
   hiit: "HIIT",
+  cardio: "CARDIO",
+  funcional: "FUNCIONAL",
   full: "COMPLETO",
+  alongamento: "ALONGAMENTO",
+  aquecimento: "AQUECIMENTO",
   viagem: "VIAGEM",
+  competicao: "COMPETIÇÃO",
 };
 
 const levelLabels: Record<string, string> = {

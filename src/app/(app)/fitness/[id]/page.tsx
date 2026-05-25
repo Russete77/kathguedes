@@ -20,9 +20,11 @@ interface Props {
 }
 
 const categoryLabels: Record<string, string> = {
-  gluteo: "Glúteos", pernas: "Pernas", costas: "Costas", ombro: "Ombro",
-  biceps: "Bíceps", triceps: "Tríceps", peito: "Peito", abdomen: "Abdômen",
-  superior: "Superior", hiit: "HIIT", cardio: "Cardio", funcional: "Funcional",
+  gluteo: "Glúteos", pernas: "Pernas", quadriceps: "Quadríceps",
+  costas: "Costas", ombro: "Ombro", biceps: "Bíceps", triceps: "Tríceps",
+  peito: "Peito", abdomen: "Abdômen",
+  superior: "Superior", inferior: "Inferior",
+  hiit: "HIIT", cardio: "Cardio", funcional: "Funcional",
   full: "Completo", alongamento: "Alongamento", aquecimento: "Aquecimento",
   viagem: "Viagem", competicao: "Competição",
 };

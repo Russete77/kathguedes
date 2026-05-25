@@ -9,8 +9,8 @@ export const createWorkoutSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   youtube_id: z.string().min(1, "YouTube ID obrigatório").max(500),
   category: z.enum([
-    "gluteo", "pernas", "costas", "ombro", "biceps", "triceps",
-    "peito", "abdomen", "superior", "hiit", "cardio", "funcional",
+    "gluteo", "pernas", "quadriceps", "costas", "ombro", "biceps", "triceps",
+    "peito", "abdomen", "superior", "inferior", "hiit", "cardio", "funcional",
     "full", "alongamento", "aquecimento", "viagem", "competicao",
   ]),
   level: z.enum(["iniciante", "intermediario", "avancado"]),
