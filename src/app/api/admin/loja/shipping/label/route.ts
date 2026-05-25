@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { generateFullLabel } from "@/lib/shipping/melhor-envio";
 import { getOriginAddress, DEFAULT_PACKAGE } from "@/lib/shipping/types";
+import { isAdmin } from "@/lib/auth-helpers";
 
 /**
  * POST /api/admin/loja/shipping/label
@@ -14,9 +14,7 @@ import { getOriginAddress, DEFAULT_PACKAGE } from "@/lib/shipping/types";
  * Fluxo: carrinho → checkout → gerar → imprimir → rastreio
  */
 export async function POST(req: NextRequest) {
-  const { sessionClaims } = await auth();
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== "admin") {
+  if (!(await isAdmin())) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
   }
 

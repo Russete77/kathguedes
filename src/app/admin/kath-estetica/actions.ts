@@ -21,12 +21,15 @@ import type {
   EsteticaVehicleRow,
   EsteticaWalkinServiceRow,
 } from "@/lib/estetica/walkin-types";
+import { requireAdmin as requireAdminBase } from "@/lib/auth-helpers";
 
-async function requireAdmin() {
-  const { userId, sessionClaims } = await auth();
+// Wrapper local: delega ao helper centralizado (que ja conhece o bypass por
+// ADMIN_EMAILS em dev) e devolve o userId pra preservar a assinatura usada no
+// resto do arquivo.
+async function requireAdmin(): Promise<string> {
+  await requireAdminBase();
+  const { userId } = await auth();
   if (!userId) throw new Error("Não autenticado");
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== "admin") throw new Error("Acesso negado");
   return userId;
 }
 
