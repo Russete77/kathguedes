@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { auth } from "@clerk/nextjs/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { WorkoutCard } from "@/components/fitness/workout-card";
 import { WorkoutFilters } from "@/components/fitness/workout-filters";
 import { StreakBadge } from "@/components/fitness/streak-badge";
 import { PlayCircle } from "lucide-react";
 import { Suspense } from "react";
+import { PLAN_LEVELS, planLevel } from "@/lib/billing/access";
+import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata: Metadata = {
   title: "Treinos em Vídeo",
@@ -24,25 +27,35 @@ interface Props {
 
 export default async function FitnessPage({ searchParams }: Props) {
   const { cat, lvl } = await searchParams;
-  const supabase = await createServerSupabaseClient();
+  const { userId } = await auth();
+  // Antes lia via RLS client; em dev a integracao Clerk↔Supabase fica fora e o catalogo
+  // volta vazio. Mudamos para admin + gate manual por plano: lemos plan_tier do user,
+  // filtramos required_plan em codigo. RLS workouts_select_by_plan e replicada aqui.
+  const admin = createAdminSupabaseClient();
 
-  // Buscar treinos (RLS filtra automaticamente por plan_tier)
-  let query = supabase
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("plan_tier, workout_streak")
+    .eq("id", userId!)
+    .single();
+
+  const userTier = ((profile?.plan_tier as string) || "free") as PlanTier;
+  const userLevel = planLevel(userTier);
+  const allowedTiers = (Object.keys(PLAN_LEVELS) as PlanTier[]).filter(
+    (t) => PLAN_LEVELS[t] <= userLevel,
+  );
+
+  let query = admin
     .from("workout_videos")
     .select("*")
     .eq("is_published", true)
+    .in("required_plan", allowedTiers)
     .order("published_at", { ascending: false });
 
   if (cat) query = query.eq("category", cat);
   if (lvl) query = query.eq("level", lvl);
 
   const { data: workouts } = await query;
-
-  // Buscar streak do usuário
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("workout_streak")
-    .single();
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">

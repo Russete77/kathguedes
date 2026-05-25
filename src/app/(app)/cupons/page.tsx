@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { auth } from "@clerk/nextjs/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { CouponCard } from "@/components/coupons/coupon-card";
 import { Tag, Zap } from "lucide-react";
+import { PLAN_LEVELS, planLevel } from "@/lib/billing/access";
+import type { PlanTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +15,29 @@ export const metadata: Metadata = {
 };
 
 export default async function CuponsPage() {
-  const supabase = await createServerSupabaseClient();
+  const { userId } = await auth();
+  // Admin client + gate manual por plano (replica coupons_select_by_plan).
+  const admin = createAdminSupabaseClient();
 
-  const { data: coupons } = await supabase
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("plan_tier")
+    .eq("id", userId!)
+    .single();
+  const userLevel = planLevel(
+    ((profile?.plan_tier as string) || "free") as PlanTier,
+  );
+  const allowedTiers = (Object.keys(PLAN_LEVELS) as PlanTier[]).filter(
+    (t) => PLAN_LEVELS[t] <= userLevel,
+  );
+
+  const nowIso = new Date().toISOString();
+  const { data: coupons } = await admin
     .from("coupons")
     .select("*")
+    .eq("is_active", true)
+    .gt("valid_until", nowIso)
+    .in("required_plan", allowedTiers)
     .order("is_flash", { ascending: false })
     .order("valid_until", { ascending: true });
 

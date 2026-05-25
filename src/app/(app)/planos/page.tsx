@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 import { SubscribeButton } from "./subscribe-button";
@@ -27,8 +27,10 @@ export default async function PlanosPage() {
   const { userId } = await auth();
   if (!userId) redirect("/login");
 
-  const supabase = await createServerSupabaseClient();
-  const { data: profile } = await supabase
+  // Admin client: profile lookup precisa do dado certo do user, e ler o proprio profile
+  // via RLS em dev volta vazio sem A1. Page deve sempre mostrar planos ativos.
+  const admin = createAdminSupabaseClient();
+  const { data: profile } = await admin
     .from("profiles")
     .select("plan_tier, cpf")
     .eq("id", userId)

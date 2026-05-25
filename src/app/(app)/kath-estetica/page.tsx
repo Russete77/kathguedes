@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseClient,
+  createAdminSupabaseClient,
+} from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import {
   Sparkles,
@@ -43,21 +46,24 @@ export const metadata: Metadata = {
 export default async function KathEsteticaHubPage() {
   const { userId } = await auth();
   const supabase = await createServerSupabaseClient();
+  // Catalogos (services, portfolio) via admin client; user-specific (loyalty) via RLS.
+  const admin = createAdminSupabaseClient();
 
   const [{ data: servicesRaw }, { data: portfolioRaw }, { data: profile }] =
     await Promise.all([
-      supabase
+      admin
         .from("estetica_services")
         .select("*")
+        .eq("is_active", true)
         .order("sort_order", { ascending: true })
         .limit(6),
-      supabase
+      admin
         .from("estetica_portfolio")
         .select("*")
         .eq("is_featured", true)
         .order("sort_order", { ascending: true })
         .limit(4),
-      supabase
+      admin
         .from("profiles")
         .select("plan_tier")
         .eq("id", userId!)

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
 import { StoreGrid } from "./store-grid";
 import { ShoppingBag } from "lucide-react";
@@ -21,16 +21,17 @@ export const metadata: Metadata = {
 
 export default async function LojaPage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin client: catalogo eh publico (products_select_active soh exige is_active).
+  // RLS aqui esbarra na integracao Clerk↔Supabase em dev.
+  const admin = createAdminSupabaseClient();
 
-  // Buscar produtos ativos (RLS filtra)
-  const { data: products } = await supabase
+  const { data: products } = await admin
     .from("products")
     .select("*")
+    .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
-  // Buscar plano do usuário para calcular desconto
-  const { data: profile } = await supabase
+  const { data: profile } = await admin
     .from("profiles")
     .select("plan_tier")
     .eq("id", userId!)

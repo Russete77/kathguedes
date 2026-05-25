@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import type { EsteticaPortfolioItem } from "@/lib/estetica/types";
@@ -15,9 +15,10 @@ export const metadata: Metadata = {
 };
 
 export default async function PortfolioPage() {
-  const supabase = await createServerSupabaseClient();
+  // Portfolio publico — admin client (catalogo, sem dado por user).
+  const admin = createAdminSupabaseClient();
 
-  const { data: itemsRaw } = await supabase
+  const { data: itemsRaw } = await admin
     .from("estetica_portfolio")
     .select("*")
     .order("is_featured", { ascending: false })

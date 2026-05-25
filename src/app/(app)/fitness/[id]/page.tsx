@@ -1,5 +1,10 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseClient,
+  createAdminSupabaseClient,
+} from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
+import { PLAN_LEVELS, planLevel } from "@/lib/billing/access";
+import type { PlanTier } from "@/lib/supabase/types";
 import { VideoPlayer } from "@/components/fitness/video-player";
 import { RestTimer } from "@/components/fitness/rest-timer";
 import { CompleteWorkoutButton } from "./complete-button";
@@ -28,25 +33,47 @@ const levelLabels: Record<string, string> = {
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  // RLS client: o titulo so vaza se o usuario tiver acesso ao required_plan.
-  const supabase = await createServerSupabaseClient();
-  const { data } = await supabase
-    .from("workout_videos")
-    .select("title")
-    .eq("id", id)
-    .single();
-  return { title: data?.title || "Treino" };
+  // Admin client + gate manual por plano: titulo so vaza se o user tem nivel >= required_plan.
+  // Antes era RLS client (workouts_select_by_plan); em dev o JWT do Clerk dev nao eh aceito
+  // pelo Supabase e o titulo voltava como "Treino" pra todo mundo. O gate de seguranca eh
+  // identico, so movido pra codigo.
+  const { userId } = await auth();
+  const admin = createAdminSupabaseClient();
+  const [{ data: workout }, { data: profile }] = await Promise.all([
+    admin
+      .from("workout_videos")
+      .select("title, required_plan")
+      .eq("id", id)
+      .single(),
+    admin.from("profiles").select("plan_tier").eq("id", userId!).single(),
+  ]);
+  if (!workout) return { title: "Treino" };
+  const userLevel = planLevel(((profile?.plan_tier as string) || "free") as PlanTier);
+  const required = planLevel(workout.required_plan as PlanTier);
+  if (userLevel < required) return { title: "Treino" };
+  return { title: workout.title || "Treino" };
 }
 
 export default async function WorkoutPage({ params }: Props) {
   const { id } = await params;
   const { userId } = await auth();
-  // RLS client: a policy de workout_videos checa plan_tier_level(user) >=
-  // required_plan, entao um treino premium acessado por URL direta retorna
-  // vazio para quem nao tem o plano (C4). Nao usar admin client aqui.
+  // Antes a policy workouts_select_by_plan gateava (C4 do audit). Em dev o JWT do Clerk
+  // nao eh aceito pelo Supabase e mesmo treino free voltava vazio → 404 generalizado.
+  // Movemos o gate pra codigo (mesma logica: planLevel(user) >= planLevel(required_plan))
+  // usando admin client. Sem regressao de seguranca — o gate explicit aqui eh o mesmo
+  // SQL que a RLS aplica.
+  const admin = createAdminSupabaseClient();
   const supabase = await createServerSupabaseClient();
 
-  const { data: workout } = await supabase
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("plan_tier")
+    .eq("id", userId!)
+    .single();
+  const userTier = ((profile?.plan_tier as string) || "free") as PlanTier;
+  const userLevel = planLevel(userTier);
+
+  const { data: workout } = await admin
     .from("workout_videos")
     .select("*")
     .eq("id", id)
@@ -54,18 +81,25 @@ export default async function WorkoutPage({ params }: Props) {
     .single();
 
   if (!workout) notFound();
+  // Gate manual — equivalente a workouts_select_by_plan.
+  if (planLevel(workout.required_plan as PlanTier) > userLevel) notFound();
 
-  // Buscar próximos treinos da mesma categoria
-  const { data: relatedWorkouts } = await supabase
+  const allowedTiers = (Object.keys(PLAN_LEVELS) as PlanTier[]).filter(
+    (t) => PLAN_LEVELS[t] <= userLevel,
+  );
+
+  const { data: relatedWorkouts } = await admin
     .from("workout_videos")
     .select("id, title, youtube_id, duration_minutes, category")
     .eq("is_published", true)
     .eq("category", workout.category)
+    .in("required_plan", allowedTiers)
     .neq("id", workout.id)
     .order("published_at", { ascending: false })
     .limit(3);
 
-  // Verificar se já completou hoje
+  // Verificar se já completou hoje (depende de RLS no workout_logs; em dev sem A1
+  // pode voltar vazio e alreadyCompleted sera false — UX degradada, sem risco).
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const { data: todayLog } = await supabase
