@@ -140,16 +140,44 @@ export async function updateService(id: string, formData: FormData) {
   revalidatePath("/admin/kath-estetica/precos");
 }
 
-export async function deleteService(id: string) {
+/**
+ * Tenta excluir o servico. Se houver agendamentos vinculados (FK 23503), cai
+ * em soft-delete (is_active=false) — o servico some das listagens do user
+ * sem quebrar o historico de bookings.
+ *
+ * Retorna o modo aplicado pra UI poder informar o operador.
+ */
+export async function deleteService(
+  id: string,
+): Promise<{ ok: true; mode: "hard" | "soft" }> {
   await requireAdmin();
   const supabase = createAdminSupabaseClient();
+
   const { error } = await supabase
     .from("estetica_services")
     .delete()
     .eq("id", id);
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/kath-estetica/servicos");
-  revalidatePath("/admin/kath-estetica/precos");
+
+  if (!error) {
+    revalidatePath("/admin/kath-estetica/servicos");
+    revalidatePath("/admin/kath-estetica/precos");
+    return { ok: true, mode: "hard" };
+  }
+
+  // 23503 = foreign_key_violation (estetica_bookings.service_id sem on delete)
+  // Mantemos o registro mas marcamos como inativo — historico de bookings preservado.
+  if (error.code === "23503") {
+    const { error: deactErr } = await supabase
+      .from("estetica_services")
+      .update({ is_active: false })
+      .eq("id", id);
+    if (deactErr) throw new Error(deactErr.message);
+    revalidatePath("/admin/kath-estetica/servicos");
+    revalidatePath("/admin/kath-estetica/precos");
+    return { ok: true, mode: "soft" };
+  }
+
+  throw new Error(error.message);
 }
 
 // ══════════════════════════════════════════

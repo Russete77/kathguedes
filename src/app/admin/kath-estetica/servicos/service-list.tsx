@@ -31,14 +31,23 @@ export function ServiceList({ services }: { services: Service[] }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleDelete(id: string, title: string) {
-    if (!confirm(`Excluir "${title}"?`)) return;
+    if (!confirm(`Excluir "${title}"?\n\nServiços com agendamentos vinculados serão desativados em vez de apagados (para preservar histórico).`)) return;
     setDeletingId(id);
     startTransition(async () => {
       try {
-        await deleteService(id);
-        toast.success("Serviço excluído");
+        const res = await deleteService(id);
+        if (res.mode === "hard") {
+          toast.success(`"${title}" excluído`);
+        } else {
+          toast.success(
+            `"${title}" tem agendamentos vinculados — foi desativado em vez de excluído.`,
+            { duration: 6000 },
+          );
+        }
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Erro");
+        toast.error(err instanceof Error ? err.message : "Erro ao excluir", {
+          duration: 6000,
+        });
       } finally {
         setDeletingId(null);
       }
