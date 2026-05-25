@@ -32,8 +32,10 @@ export default async function FidelidadePage() {
     .order("created_at", { ascending: false });
 
   const photos = (photosRaw || []) as unknown as EsteticaLoyaltyPhoto[];
-  const approved = photos.filter((p) => p.approved).length;
-  const pending = photos.filter((p) => !p.approved).length;
+  const approvedPhotos = photos.filter((p) => p.approved);
+  const pendingPhotos = photos.filter((p) => !p.approved);
+  const approved = approvedPhotos.length;
+  const pending = pendingPhotos.length;
   const unlocked = approved >= 3;
 
   // Agendamentos concluídos do mês que AINDA NÃO TÊM foto enviada
@@ -140,7 +142,7 @@ export default async function FidelidadePage() {
       </div>
 
       {/* Agendamentos prontos pra enviar foto */}
-      {bookingsNeedingPhoto.length > 0 && (
+      {bookingsNeedingPhoto.length > 0 ? (
         <div className="bg-bg-1 border border-pink/30 rounded-[22px] p-6 space-y-4">
           <div>
             <Badge variant="pink" className="mb-2">
@@ -151,7 +153,7 @@ export default async function FidelidadePage() {
               {bookingsNeedingPhoto.length} agendamento{bookingsNeedingPhoto.length > 1 ? "s" : ""} pronto{bookingsNeedingPhoto.length > 1 ? "s" : ""} pra foto
             </h2>
             <p className="text-gray-2 text-sm mt-1">
-              Envie a foto da sua moto após a lavagem. A Kath aprova e conta no programa.
+              Tire a foto pela câmera ou escolha da galeria. A Kath aprova manualmente — só depois disso a foto entra no <strong className="text-pink">Progresso do mês</strong>.
             </p>
           </div>
 
@@ -179,12 +181,34 @@ export default async function FidelidadePage() {
                   <Badge variant="green" className="shrink-0">
                     Concluído
                   </Badge>
-          
                 </div>
                 <LoyaltyPhotoUpload bookingId={b.id} />
               </div>
             ))}
           </div>
+        </div>
+      ) : (
+        /* Sem booking pronto — explicar o caminho. Inclui CTA pra /servicos. */
+        <div className="bg-bg-1 border border-gray-4 rounded-[22px] p-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <Camera size={18} className="stroke-gray-3" />
+            <span className="font-mono text-[11px] text-gray-3 uppercase tracking-[0.12em]">
+              Envio de fotos
+            </span>
+          </div>
+          <p className="text-gray-2 text-sm leading-relaxed">
+            Você ainda não tem agendamentos concluídos para enviar foto. Quando a Kath
+            marcar uma lavagem sua como <strong className="text-white">concluída</strong>,
+            ela aparece aqui com dois botões: <strong className="text-white">Tirar foto</strong>{" "}
+            (câmera traseira do celular) ou <strong className="text-white">Galeria</strong> (escolher
+            arquivo do aparelho). Depois é só aguardar a aprovação manual.
+          </p>
+          <Link
+            href="/kath-estetica/servicos"
+            className="inline-flex items-center gap-2 text-pink text-sm font-semibold hover:text-pink-light"
+          >
+            Ver serviços disponíveis →
+          </Link>
         </div>
       )}
 
@@ -215,35 +239,37 @@ export default async function FidelidadePage() {
         </ol>
       </div>
 
-      {/* Fotos do mês */}
-      {photos.length > 0 && (
+      {/* Aguardando aprovação — separadas pra deixar claro que NAO contam ainda */}
+      {pendingPhotos.length > 0 && (
         <div>
-          <h2 className="font-display text-xl text-white mb-3">FOTOS DO MÊS</h2>
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={14} className="stroke-yellow" />
+            <h2 className="font-mono text-[11px] text-yellow tracking-[0.12em] uppercase">
+              Aguardando aprovação ({pendingPhotos.length})
+            </h2>
+          </div>
+          <p className="text-gray-2 text-xs mb-3">
+            Essas fotos ainda não entraram no progresso. A Kath aprova manualmente.
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {photos.map((p) => (
+            {pendingPhotos.map((p) => (
               <div
                 key={p.id}
-                className="relative aspect-square bg-bg-1 border border-gray-4 rounded-[14px] overflow-hidden"
+                className="relative aspect-square bg-bg-1 border border-yellow/30 rounded-[14px] overflow-hidden"
               >
                 <Image
                   src={p.photo_url}
-                  alt="Foto fidelidade"
+                  alt="Foto pendente"
                   fill
                   sizes="(max-width: 640px) 50vw, 25vw"
-                  className="object-cover"
+                  className="object-cover opacity-60"
                 />
+                <div className="absolute inset-0 bg-black/30 pointer-events-none" />
                 <div className="absolute bottom-2 left-2">
-                  {p.approved ? (
-                    <Badge variant="pink" className="gap-1">
-                      <Check size={10} />
-                      APROVADA
-                    </Badge>
-                  ) : (
-                    <Badge variant="yellow" className="gap-1">
-                      <Clock size={10} />
-                      PENDENTE
-                    </Badge>
-                  )}
+                  <Badge variant="yellow" className="gap-1">
+                    <Clock size={10} />
+                    PENDENTE
+                  </Badge>
                 </div>
               </div>
             ))}
@@ -251,12 +277,37 @@ export default async function FidelidadePage() {
         </div>
       )}
 
-      {photos.length === 0 && bookingsNeedingPhoto.length === 0 && (
-        <div className="text-center py-12 bg-bg-1 border border-gray-4 rounded-[22px]">
-          <Camera size={40} className="stroke-gray-3 mx-auto mb-3" />
-          <p className="text-gray-2 text-sm">
-            Nenhuma foto enviada este mês. Finalize um serviço pra começar.
-          </p>
+      {/* Aprovadas — essas SÃO as que contam pro progresso */}
+      {approvedPhotos.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Check size={14} className="stroke-pink" />
+            <h2 className="font-mono text-[11px] text-pink tracking-[0.12em] uppercase">
+              Aprovadas este mês ({approvedPhotos.length})
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {approvedPhotos.map((p) => (
+              <div
+                key={p.id}
+                className="relative aspect-square bg-bg-1 border border-pink/40 rounded-[14px] overflow-hidden"
+              >
+                <Image
+                  src={p.photo_url}
+                  alt="Foto aprovada"
+                  fill
+                  sizes="(max-width: 640px) 50vw, 25vw"
+                  className="object-cover"
+                />
+                <div className="absolute bottom-2 left-2">
+                  <Badge variant="pink" className="gap-1">
+                    <Check size={10} />
+                    APROVADA
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
