@@ -36,6 +36,17 @@ type ClerkUserCreatedPayload = {
   };
 };
 
+type ClerkUserUpdatedPayload = {
+  type: "user.updated";
+  data: {
+    id: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    image_url?: string | null;
+    email_addresses?: Array<{ email_address: string }>;
+  };
+};
+
 type ClerkUserDeletedPayload = {
   type: "user.deleted";
   data: {
@@ -44,10 +55,11 @@ type ClerkUserDeletedPayload = {
   };
 };
 
-type ClerkEvent = ClerkUserCreatedPayload | ClerkUserDeletedPayload | {
-  type: string;
-  data: Record<string, unknown>;
-};
+type ClerkEvent =
+  | ClerkUserCreatedPayload
+  | ClerkUserUpdatedPayload
+  | ClerkUserDeletedPayload
+  | { type: string; data: Record<string, unknown> };
 
 async function verifySignature(
   req: NextRequest,
@@ -150,6 +162,23 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
 
       return NextResponse.json({ ok: true, action: "user.created" });
+    }
+
+    if (event.type === "user.updated") {
+      const data = event.data as ClerkUserUpdatedPayload["data"];
+      const fullName = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim();
+      const supabase = createAdminSupabaseClient();
+
+      // So atualizamos campos que o Clerk eh dono — nao mexer em plan_tier ou
+      // subscription_status (sao do dominio billing). Skip update vazio.
+      const patch: Record<string, unknown> = {};
+      if (fullName) patch.full_name = fullName;
+      if (data.image_url) patch.avatar_url = data.image_url;
+      if (Object.keys(patch).length > 0) {
+        await supabase.from("profiles").update(patch).eq("id", data.id);
+      }
+
+      return NextResponse.json({ ok: true, action: "user.updated", patched: Object.keys(patch) });
     }
 
     if (event.type === "user.deleted") {

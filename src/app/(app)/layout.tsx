@@ -16,27 +16,46 @@ export default async function AppLayout({
   const { userId } = await auth();
   if (!userId) return null;
 
-  // ── Onboarding gate
+  // ── Onboarding gate + sync de identidade Clerk → Supabase
   // FONTE DE VERDADE: o `middleware.ts` lê `sessionClaims.metadata.onboarding_completed`
-  // (Clerk) e redireciona /onboarding antes desta layout rodar. Aqui apenas
-  // garantimos que existe profile correspondente no Supabase — primeira passada
-  // após o signup do Clerk (Clerk webhook não está instrumentado ainda).
+  // (Clerk) e redireciona /onboarding antes desta layout rodar. Aqui:
+  //   1) Garantimos que existe profile correspondente no Supabase (1a passada
+  //      pos-signup do Clerk caso o webhook nao tenha chegado).
+  //   2) Best-effort sync de `full_name` e `avatar_url` se o user mudou no Clerk
+  //      e o webhook user.updated nao chegou (acontece em dev local sem tunel).
   const supabase = createAdminSupabaseClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, full_name, avatar_url")
     .eq("id", userId)
     .single();
 
+  const clerkUser = await currentUser();
+  const clerkFullName =
+    `${clerkUser?.firstName || ""} ${clerkUser?.lastName || ""}`.trim();
+  const clerkAvatar = clerkUser?.imageUrl ?? null;
+
   if (!profile) {
-    const user = await currentUser();
     await supabase.from("profiles").insert({
       id: userId,
-      full_name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Usuário",
+      full_name: clerkFullName || "Usuário",
+      avatar_url: clerkAvatar,
       plan_tier: "free",
       subscription_status: "active",
     });
     redirect("/onboarding");
+  }
+
+  // Sync best-effort: so atualiza se mudou e tem valor novo. Nao bloqueia.
+  const patch: Record<string, string> = {};
+  if (clerkFullName && clerkFullName !== profile.full_name) {
+    patch.full_name = clerkFullName;
+  }
+  if (clerkAvatar && clerkAvatar !== profile.avatar_url) {
+    patch.avatar_url = clerkAvatar;
+  }
+  if (Object.keys(patch).length > 0) {
+    await supabase.from("profiles").update(patch).eq("id", userId);
   }
 
   return (
