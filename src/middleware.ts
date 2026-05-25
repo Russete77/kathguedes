@@ -28,12 +28,21 @@ const isOnboardingExempt = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // Admin: verificar role via publicMetadata nos sessionClaims
+  // Admin: verificar role via publicMetadata nos sessionClaims.
+  // Em prod o middleware eh o gate. Em dev, se ADMIN_EMAILS estiver setado e o role
+  // do Clerk nao for admin, deixamos passar — o layout faz a checagem completa por
+  // email (currentUser()), que em middleware sairia caro.
   if (isAdminRoute(req)) {
     const session = await auth();
     if (session.sessionClaims?.metadata?.role !== "admin") {
-      const url = new URL("/dashboard", req.url);
-      return NextResponse.redirect(url);
+      const isProd =
+        process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production";
+      const hasDevAdminAllowlist =
+        !isProd && (process.env.ADMIN_EMAILS ?? "").trim().length > 0;
+      if (!hasDevAdminAllowlist) {
+        const url = new URL("/dashboard", req.url);
+        return NextResponse.redirect(url);
+      }
     }
   }
 
