@@ -63,6 +63,12 @@ export async function createService(formData: FormData) {
     if (key !== "includes") raw[key] = value === "" ? null : value;
   });
   raw.includes = includes;
+  // Checkbox HTML nao envia o campo quando desmarcado — o schema acabava
+  // caindo no .default(true) e o serviço permanecia ativo. Forcar leitura
+  // explicita via formData.has().
+  raw.is_active = formData.has("is_active");
+  raw.eligible_for_loyalty = formData.has("eligible_for_loyalty");
+  raw.requires_paid_plan = formData.has("requires_paid_plan");
 
   const data = createEsteticaServiceSchema.parse(raw);
 
@@ -101,6 +107,12 @@ export async function updateService(id: string, formData: FormData) {
     if (key !== "includes") raw[key] = value === "" ? null : value;
   });
   raw.includes = includes;
+  // Checkbox HTML nao envia o campo quando desmarcado — o schema acabava
+  // caindo no .default(true) e o serviço permanecia ativo. Forcar leitura
+  // explicita via formData.has().
+  raw.is_active = formData.has("is_active");
+  raw.eligible_for_loyalty = formData.has("eligible_for_loyalty");
+  raw.requires_paid_plan = formData.has("requires_paid_plan");
 
   const data = createEsteticaServiceSchema.parse(raw);
 
