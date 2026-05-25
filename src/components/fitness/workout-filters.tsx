@@ -2,16 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-
-const categories = [
-  { value: "", label: "Todos" },
-  { value: "gluteo", label: "Glúteos" },
-  { value: "pernas", label: "Pernas" },
-  { value: "superior", label: "Superior" },
-  { value: "hiit", label: "HIIT" },
-  { value: "full", label: "Completo" },
-  { value: "viagem", label: "Viagem" },
-];
+import { categoryLabels } from "@/constants/fitness";
 
 const levels = [
   { value: "", label: "Todos" },
@@ -20,7 +11,23 @@ const levels = [
   { value: "avancado", label: "Avançado" },
 ];
 
-export function WorkoutFilters() {
+export function WorkoutFilters({
+  availableCategories = [],
+}: {
+  /**
+   * Slugs de categoria que tem AO MENOS UM video publicado e acessivel ao user.
+   * Admin enxerga todas as opcoes ao cadastrar; o filtro do user esconde categorias
+   * vazias pra nao oferecer botao que nunca tem resultado.
+   */
+  availableCategories?: string[];
+}) {
+  const categories = [
+    { value: "", label: "Todos" },
+    ...availableCategories.map((slug) => ({
+      value: slug,
+      label: categoryLabels[slug] ?? slug,
+    })),
+  ];
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeCategory = searchParams.get("cat") || "";

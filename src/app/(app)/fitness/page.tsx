@@ -45,6 +45,16 @@ export default async function FitnessPage({ searchParams }: Props) {
     (t) => PLAN_LEVELS[t] <= userLevel,
   );
 
+  // Categorias que tem AO MENOS UM video publicado E acessivel ao plano do user —
+  // calculadas em paralelo com a query principal pra nao adicionar latencia.
+  // Query separada (sem filtros de cat/lvl) pra que o conjunto de botoes nao mude
+  // conforme o user filtra.
+  const allWorkoutsForCategoriesPromise = admin
+    .from("workout_videos")
+    .select("category")
+    .eq("is_published", true)
+    .in("required_plan", allowedTiers);
+
   let query = admin
     .from("workout_videos")
     .select("*")
@@ -55,7 +65,18 @@ export default async function FitnessPage({ searchParams }: Props) {
   if (cat) query = query.eq("category", cat);
   if (lvl) query = query.eq("level", lvl);
 
-  const { data: workouts } = await query;
+  const [{ data: workouts }, { data: allForCategories }] = await Promise.all([
+    query,
+    allWorkoutsForCategoriesPromise,
+  ]);
+
+  const availableCategories = Array.from(
+    new Set(
+      (allForCategories ?? [])
+        .map((w) => w.category as string | null)
+        .filter((c): c is string => !!c),
+    ),
+  );
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -74,7 +95,7 @@ export default async function FitnessPage({ searchParams }: Props) {
 
       {/* Filters */}
       <Suspense>
-        <WorkoutFilters />
+        <WorkoutFilters availableCategories={availableCategories} />
       </Suspense>
 
       {/* Grid */}

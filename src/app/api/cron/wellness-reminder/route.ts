@@ -177,7 +177,9 @@ export async function GET(req: NextRequest) {
             title: todaysVideo.title,
             body: todaysVideo.body ?? "Toque para assistir o vídeo do dia.",
             icon: "PlayCircle",
-            url: `https://www.youtube.com/watch?v=${todaysVideo.youtube_id}`,
+            // Abre IN-APP no player vertical (Shorts-style) — antes mandava direto
+            // pro YouTube externo e quebrava a experiencia.
+            url: `/motivacional/${todaysVideo.id}`,
           });
           await supabase
             .from("wellness_reminders" as never)
