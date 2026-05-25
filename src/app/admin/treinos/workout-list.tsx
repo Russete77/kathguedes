@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { toggleWorkoutPublished, deleteWorkout } from "../actions";
 import { WorkoutEdit } from "./workout-edit";
 import { Badge } from "@/components/ui/badge";
@@ -58,8 +59,28 @@ const levelLabels: Record<string, string> = {
   avancado: "Avançado",
 };
 
-function confirmDelete(id: string) {
-  if (confirm("Deletar este treino?")) deleteWorkout(id);
+async function confirmDelete(id: string, title: string) {
+  if (
+    !confirm(
+      `Deletar "${title}"?\n\nTreinos com histórico de usuários (workout_logs) serão DESPUBLICADOS em vez de apagados, pra preservar o registro de quem já treinou.`,
+    )
+  )
+    return;
+  try {
+    const res = await deleteWorkout(id);
+    if (res.mode === "hard") {
+      toast.success(`"${title}" deletado`);
+    } else {
+      toast.success(
+        `"${title}" tem histórico de usuários — foi despublicado em vez de apagado.`,
+        { duration: 6000 },
+      );
+    }
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : "Erro ao deletar", {
+      duration: 6000,
+    });
+  }
 }
 
 export function WorkoutList({ workouts }: { workouts: WorkoutRow[] }) {
@@ -137,7 +158,7 @@ export function WorkoutList({ workouts }: { workouts: WorkoutRow[] }) {
                   variant="destructive"
                   size="sm"
                   className="w-8 h-8 px-0 rounded-full"
-                  onClick={() => confirmDelete(w.id)}
+                  onClick={() => confirmDelete(w.id, w.title)}
                   title="Excluir"
                 >
                   <Trash2 size={14} />
@@ -224,7 +245,7 @@ export function WorkoutList({ workouts }: { workouts: WorkoutRow[] }) {
                       variant="destructive"
                       size="sm"
                       className="w-8 h-8 px-0 rounded-full"
-                      onClick={() => confirmDelete(w.id)}
+                      onClick={() => confirmDelete(w.id, w.title)}
                     >
                       <Trash2 size={14} />
                     </Button>

@@ -116,13 +116,37 @@ export async function toggleWorkoutPublished(id: string, published: boolean) {
   revalidatePath("/admin/treinos");
 }
 
-export async function deleteWorkout(id: string) {
+/**
+ * Tenta excluir o treino. Se houver workout_logs vinculados (FK 23503), cai em
+ * soft-delete: marca is_published=false (some do app do user) e preserva o
+ * historico de quem ja completou.
+ */
+export async function deleteWorkout(
+  id: string,
+): Promise<{ ok: true; mode: "hard" | "soft" }> {
   await requireAdmin();
   const supabase = createAdminSupabaseClient();
 
   const { error } = await supabase.from("workout_videos").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/treinos");
+
+  if (!error) {
+    revalidatePath("/admin/treinos");
+    return { ok: true, mode: "hard" };
+  }
+
+  // 23503 = foreign_key_violation (workout_logs.workout_id sem on delete).
+  // Despublica em vez de apagar — preserva os logs de quem ja treinou.
+  if (error.code === "23503") {
+    const { error: unpubErr } = await supabase
+      .from("workout_videos")
+      .update({ is_published: false, published_at: null })
+      .eq("id", id);
+    if (unpubErr) throw new Error(unpubErr.message);
+    revalidatePath("/admin/treinos");
+    return { ok: true, mode: "soft" };
+  }
+
+  throw new Error(error.message);
 }
 
 // ══════════════════════════════════════════
