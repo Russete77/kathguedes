@@ -1,7 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseClient,
+  createAdminSupabaseClient,
+} from "@/lib/supabase/server";
 import { ArrowLeft } from "lucide-react";
 import { type EsteticaService } from "@/lib/estetica/types";
 import { BookingForm } from "./booking-form";
@@ -21,9 +24,11 @@ export default async function AgendarPage({ params }: Props) {
   const { userId } = await auth();
   const user = await currentUser();
   const supabase = await createServerSupabaseClient();
+  // Catalogo via admin client (mesmo motivo de /kath-estetica/servicos e [id]).
+  const admin = createAdminSupabaseClient();
 
   const [{ data: serviceRaw }, { data: profile }] = await Promise.all([
-    supabase
+    admin
       .from("estetica_services")
       .select("*")
       .eq("id", serviceId)

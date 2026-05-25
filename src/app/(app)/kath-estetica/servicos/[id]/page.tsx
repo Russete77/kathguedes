@@ -3,7 +3,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseClient,
+  createAdminSupabaseClient,
+} from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Clock, Check, Droplets, Calendar, MapPin } from "lucide-react";
 import {
@@ -24,9 +27,14 @@ export default async function ServicoDetailPage({ params }: Props) {
   const { id } = await params;
   const { userId } = await auth();
   const supabase = await createServerSupabaseClient();
+  // Mesmo motivo da pagina de lista: catalogo de servicos eh publico
+  // (so depende de is_active). Lemos via admin client pra nao depender da
+  // integracao Clerk↔Supabase em dev (issuer/claim) — sem isso, detalhe
+  // de servico cai em notFound() e o user ve 404.
+  const admin = createAdminSupabaseClient();
 
   const [{ data: serviceRaw }, { data: profile }] = await Promise.all([
-    supabase
+    admin
       .from("estetica_services")
       .select("*")
       .eq("id", id)
