@@ -122,9 +122,11 @@ export async function setTestUserTier(input: {
     url: "/planos",
   }).catch(() => {});
 
-  // Revalida páginas que dependem do tier do user
+  // Revalida páginas que dependem do tier do user — layout-level revalida tambem
+  // /perfil, /dashboard, /fitness etc, que de outro modo ficam com client cache antigo.
   revalidatePath("/admin/users");
   revalidatePath("/admin/assinantes");
+  revalidatePath("/", "layout");
 
   return { ok: true, previousTier: prevTier, newTier: data.tier };
 }

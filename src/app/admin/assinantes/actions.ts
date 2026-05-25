@@ -69,6 +69,7 @@ export async function setSubscriptionStatus(input: {
 
   revalidatePath("/admin/assinantes");
   revalidatePath("/admin/users");
+  revalidatePath("/", "layout");
   return { ok: true, previousStatus: (prev?.subscription_status as string | null) ?? null };
 }
 
@@ -142,8 +143,13 @@ export async function setAssinantePlan(input: {
     url: "/planos",
   }).catch(() => {});
 
+  // Invalidar paginas admin + as paginas do user que leem plan_tier — sem isso,
+  // o client-router cache do Next mantem o estado antigo do /perfil, /dashboard,
+  // /fitness etc, e o operador acha que o update nao pegou. layout-level revalida
+  // tudo abaixo de uma so vez (gates de plano espalhados sao varios paths).
   revalidatePath("/admin/assinantes");
   revalidatePath("/admin/users");
+  revalidatePath("/", "layout");
 
   return { ok: true, previousTier: prevTier, newTier: data.tier };
 }
