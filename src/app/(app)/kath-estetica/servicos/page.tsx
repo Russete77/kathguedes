@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseClient,
+  createAdminSupabaseClient,
+} from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Droplets, Clock, Check, MapPin } from "lucide-react";
 import {
@@ -22,11 +25,18 @@ export const metadata: Metadata = {
 export default async function ServicosPage() {
   const { userId } = await auth();
   const supabase = await createServerSupabaseClient();
+  // Catalogo eh conteudo essencialmente publico (so depende de is_active).
+  // Lemos via admin client pra nao ficar refem do Clerk↔Supabase RLS (issuer/claim) —
+  // em dev a integracao Third-Party Auth nao reconhece o JWT do Clerk de dev e a
+  // policy `to authenticated` retorna vazio. Em prod fica identico ao comportamento anterior
+  // (admin tambem ve `is_active = true`).
+  const admin = createAdminSupabaseClient();
 
   const [{ data: servicesRaw }, { data: profile }] = await Promise.all([
-    supabase
+    admin
       .from("estetica_services")
       .select("*")
+      .eq("is_active", true)
       .order("sort_order", { ascending: true }),
     supabase.from("profiles").select("plan_tier").eq("id", userId!).single(),
   ]);
