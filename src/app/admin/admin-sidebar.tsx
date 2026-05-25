@@ -26,6 +26,7 @@ import {
   ChevronDown,
   Banknote,
   Heart,
+  DollarSign,
 } from "lucide-react";
 
 interface NavItem {
@@ -65,7 +66,8 @@ const navGroups: NavGroup[] = [
     label: "Estética Moto",
     icon: Bike,
     items: [
-      { href: "/admin/kath-estetica/servicos", label: "Serviços + Preços", icon: Sparkles },
+      { href: "/admin/kath-estetica/servicos", label: "Serviços", icon: Sparkles },
+      { href: "/admin/kath-estetica/precos", label: "Preços", icon: DollarSign },
       { href: "/admin/kath-estetica/agendamentos", label: "Agendamentos", icon: Calendar },
       { href: "/admin/kath-estetica/fidelidade", label: "Fidelidade", icon: Gift },
       { href: "/admin/kath-estetica/portfolio", label: "Portfólio", icon: ImageIcon },
