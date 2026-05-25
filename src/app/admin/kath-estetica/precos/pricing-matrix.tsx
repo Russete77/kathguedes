@@ -50,10 +50,16 @@ export function PricingMatrix({
   service,
   vehicleTypes,
   initial,
+  showHeader = true,
 }: {
   service: ServiceLite;
   vehicleTypes: EsteticaVehicleType[];
   initial: ServicePricing | undefined;
+  /**
+   * Quando false, esconde o título/categoria/duração — usado quando a matriz
+   * vive dentro do card de Serviços (que já mostra essa info).
+   */
+  showHeader?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -130,35 +136,60 @@ export function PricingMatrix({
     });
   }
 
+  const wrapperClass = showHeader
+    ? "bg-bg-1 border border-gray-4 rounded-[18px] p-4 sm:p-5 space-y-4"
+    : "space-y-4";
+
   return (
-    <section className="bg-bg-1 border border-gray-4 rounded-[18px] p-4 sm:p-5 space-y-4">
-      {/* Header do serviço */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-display text-lg sm:text-xl text-white leading-tight">
-            {service.title.toUpperCase()}
-          </h2>
-          <div className="flex flex-wrap gap-2 mt-1 text-[11px] text-gray-3">
-            <Badge variant="pink">{service.category}</Badge>
-            <span>{service.duration_min} min</span>
-            {service.slug && <span className="font-mono">/{service.slug}</span>}
+    <section className={wrapperClass}>
+      {showHeader ? (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-display text-lg sm:text-xl text-white leading-tight">
+              {service.title.toUpperCase()}
+            </h2>
+            <div className="flex flex-wrap gap-2 mt-1 text-[11px] text-gray-3">
+              <Badge variant="pink">{service.category}</Badge>
+              <span>{service.duration_min} min</span>
+              {service.slug && <span className="font-mono">/{service.slug}</span>}
+            </div>
           </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleSave}
+            disabled={pending}
+            className="shrink-0"
+          >
+            {pending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Save size={14} />
+            )}
+            Salvar
+          </Button>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleSave}
-          disabled={pending}
-          className="shrink-0"
-        >
-          {pending ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Save size={14} />
-          )}
-          Salvar
-        </Button>
-      </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-mono text-[11px] text-gray-3 tracking-[0.1em] uppercase">
+            Preços por tipo de moto
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleSave}
+            disabled={pending}
+            className="shrink-0"
+          >
+            {pending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Save size={14} />
+            )}
+            Salvar preços
+          </Button>
+        </div>
+      )}
 
       {/* Lista de preços por tipo */}
       <div className="space-y-2">

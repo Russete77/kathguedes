@@ -45,6 +45,40 @@ export async function getServices() {
   return data || [];
 }
 
+/**
+ * Fetch unificado pra página /admin/kath-estetica/servicos:
+ * traz serviços completos + tipos de moto + matriz de preços por serviço.
+ * Substitui o uso isolado de getServices() + getPricingMatrixData().
+ */
+export async function getServicesWithPricing(): Promise<{
+  services: Array<Record<string, unknown> & { id: string; slug: string | null }>;
+  vehicleTypes: EsteticaVehicleType[];
+  pricingByService: Record<string, ServicePricing>;
+}> {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+
+  const { data: servicesRaw, error: servicesErr } = await supabase
+    .from("estetica_services")
+    .select("*")
+    .order("sort_order", { ascending: true });
+  if (servicesErr) throw new Error(servicesErr.message);
+
+  const services = ((servicesRaw ?? []) as Array<Record<string, unknown>>).map(
+    (s) => ({ ...s, slug: (s.slug as string | null) ?? null }),
+  ) as Array<Record<string, unknown> & { id: string; slug: string | null }>;
+
+  const vehicleTypes = await listVehicleTypes();
+
+  const pairs = await Promise.all(
+    services.map(async (s) => [s.id, await getServicePricing(s.id)] as const),
+  );
+  const pricingByService: Record<string, ServicePricing> = {};
+  for (const [id, pricing] of pairs) pricingByService[id] = pricing;
+
+  return { services, vehicleTypes, pricingByService };
+}
+
 export async function createService(formData: FormData) {
   await requireAdmin();
   const supabase = createAdminSupabaseClient();
@@ -80,6 +114,7 @@ export async function createService(formData: FormData) {
 
   if (error) throw new Error(error.message);
   revalidatePath("/admin/kath-estetica/servicos");
+  revalidatePath("/admin/kath-estetica/precos");
 }
 
 export async function updateService(id: string, formData: FormData) {
@@ -120,6 +155,7 @@ export async function updateService(id: string, formData: FormData) {
 
   if (error) throw new Error(error.message);
   revalidatePath("/admin/kath-estetica/servicos");
+  revalidatePath("/admin/kath-estetica/precos");
 }
 
 export async function deleteService(id: string) {
@@ -131,6 +167,7 @@ export async function deleteService(id: string) {
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/kath-estetica/servicos");
+  revalidatePath("/admin/kath-estetica/precos");
 }
 
 // ══════════════════════════════════════════
@@ -965,6 +1002,7 @@ export async function saveServicePricing(input: ServicePricingInput) {
   }
 
   revalidatePath("/admin/kath-estetica/precos");
+  revalidatePath("/admin/kath-estetica/servicos");
   return { ok: true };
 }
 

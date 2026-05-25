@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import { createService, updateService } from "../actions";
@@ -23,10 +23,34 @@ interface ServiceRow {
   sort_order?: number;
 }
 
-export function ServiceForm({ initial }: { initial?: ServiceRow }) {
-  const [open, setOpen] = useState(false);
+/**
+ * ServiceForm pode operar em dois modos:
+ * 1. Auto-trigger (default): renderiza botão "Novo serviço"; clicar abre modal.
+ * 2. Controlado externo: passa `defaultOpen` e `onClose` — o modal abre direto e o caller
+ *    sabe quando fechou (ex.: ServiceList clicou no lápis "Editar" de um card).
+ */
+export function ServiceForm({
+  initial,
+  defaultOpen = false,
+  onClose,
+}: {
+  initial?: ServiceRow;
+  defaultOpen?: boolean;
+  onClose?: () => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   const [pending, startTransition] = useTransition();
   const editing = !!initial?.id;
+
+  // Sincroniza com mudança externa (caller troca o `initial` enquanto aberto).
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen, initial?.id]);
+
+  function close() {
+    setOpen(false);
+    onClose?.();
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,14 +63,16 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
           await createService(fd);
         }
         toast.success(editing ? "Serviço atualizado" : "Serviço criado");
-        setOpen(false);
+        close();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro");
       }
     });
   }
 
+  // Em modo controlado externo o caller já decidiu abrir; nunca renderiza o trigger.
   if (!open) {
+    if (onClose) return null;
     return (
       <Button onClick={() => setOpen(true)}>
         <Plus size={16} />
@@ -56,10 +82,20 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)} />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <button
+        type="button"
+        aria-label="Fechar"
+        onClick={close}
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm cursor-default"
+      />
       <form
         onSubmit={handleSubmit}
+        onClick={(e) => e.stopPropagation()}
         className="relative bg-bg-1 border border-gray-4 rounded-[22px] p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4"
       >
         <h2 className="font-display text-xl sm:text-2xl text-white">
@@ -95,7 +131,7 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field
-            label="Preço (centavos)"
+            label="Preço base (centavos)"
             name="price_cents"
             type="number"
             min={1}
@@ -121,9 +157,19 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
           defaultValue={initial?.cost_cents ?? 0}
         />
 
-        <div className="rounded-md bg-bg-2 border border-gray-4 p-3 text-sm text-gray-2">
-          <strong className="text-gray-1">Descontos por plano:</strong> aplicados automaticamente
-          conforme a tabela <a href="/admin/plans" className="underline text-pink">Planos</a>.
+        <div className="rounded-md bg-bg-2 border border-gray-4 p-3 text-xs sm:text-sm text-gray-2 space-y-1">
+          <p>
+            <strong className="text-gray-1">Preço por tipo de moto</strong> é editado direto no
+            card abaixo (matriz). Esse valor base é o fallback quando o serviço não tem matriz.
+          </p>
+          <p>
+            <strong className="text-gray-1">Descontos por plano</strong> são aplicados automaticamente
+            conforme a tabela{" "}
+            <a href="/admin/plans" className="underline text-pink">
+              Planos
+            </a>
+            .
+          </p>
         </div>
 
         <Field
@@ -166,7 +212,7 @@ export function ServiceForm({ initial }: { initial?: ServiceRow }) {
         </label>
 
         <div className="flex gap-3 pt-2">
-          <Button type="button" variant="ghost" size="lg" onClick={() => setOpen(false)} className="flex-1">
+          <Button type="button" variant="ghost" size="lg" onClick={close} className="flex-1">
             Cancelar
           </Button>
           <Button type="submit" size="lg" disabled={pending} className="flex-1">
