@@ -28,20 +28,26 @@ export function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
+        // `relative` no .month ancora o .nav (absolute) dentro do calendario —
+        // sem isso as setinhas escapam pro primeiro ancestor positionado (modal/body),
+        // aparecendo no topo da pagina (DayPicker v10 renderiza .nav como irmao
+        // de .month_caption, nao como filho).
         months: "flex flex-col sm:flex-row gap-4",
-        month: "space-y-3",
-        month_caption: "flex justify-center pt-1 relative items-center",
+        month: "relative space-y-3",
+        month_caption: "flex justify-center pt-1 items-center",
         caption_label: "text-sm font-semibold text-white",
-        nav: "flex items-center gap-1",
+        // Nav sobrepoe a caption: linha do topo do mes, prev/next nos cantos,
+        // pointer-events-none deixa o meio passar pra label centralizada.
+        nav: "absolute top-0 inset-x-1 flex items-center justify-between pointer-events-none z-10",
         button_previous: cn(
           "inline-flex items-center justify-center rounded-md p-1.5",
           "text-gray-2 hover:text-pink hover:bg-bg-2 transition-colors",
-          "absolute left-1 top-0.5",
+          "pointer-events-auto",
         ),
         button_next: cn(
           "inline-flex items-center justify-center rounded-md p-1.5",
           "text-gray-2 hover:text-pink hover:bg-bg-2 transition-colors",
-          "absolute right-1 top-0.5",
+          "pointer-events-auto",
         ),
         month_grid: "w-full border-collapse",
         weekdays: "flex",
