@@ -4,7 +4,7 @@ import { useState } from "react";
 import { updateConsultationStatus } from "../actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Settings2, ChevronRight } from "lucide-react";
+import { Settings2, ChevronRight, Calendar } from "lucide-react";
 import Link from "next/link";
 import {
   Table,
@@ -25,7 +25,10 @@ interface Consultation {
   profiles: { full_name: string };
 }
 
-const statusConfig: Record<string, { label: string; variant: "pink" | "yellow" | "green" | "dark" }> = {
+const statusConfig: Record<
+  string,
+  { label: string; variant: "pink" | "yellow" | "green" | "dark" }
+> = {
   pending: { label: "Pendente", variant: "yellow" },
   in_progress: { label: "Em Andamento", variant: "pink" },
   delivered: { label: "Entregue", variant: "green" },
@@ -42,9 +45,10 @@ const packageLabels: Record<string, string> = {
 export function ConsultationQueue({ consultations }: { consultations: Consultation[] }) {
   const [filter, setFilter] = useState<string>("all");
 
-  const filtered = filter === "all"
-    ? consultations
-    : consultations.filter((c) => c.status === filter);
+  const filtered =
+    filter === "all"
+      ? consultations
+      : consultations.filter((c) => c.status === filter);
 
   if (!consultations.length) {
     return (
@@ -57,8 +61,8 @@ export function ConsultationQueue({ consultations }: { consultations: Consultati
 
   return (
     <div className="space-y-4">
-      {/* Filter tabs */}
-      <div className="flex gap-2">
+      {/* Filter tabs — wrap em telas pequenas */}
+      <div className="flex flex-wrap gap-2">
         {[
           { value: "all", label: "Todas" },
           { value: "pending", label: "Pendentes" },
@@ -77,17 +81,70 @@ export function ConsultationQueue({ consultations }: { consultations: Consultati
             {tab.label}
             {tab.value !== "all" && (
               <span className="ml-1.5 font-mono text-[11px]">
-                {consultations.filter((c) =>
-                  tab.value === "all" ? true : c.status === tab.value
-                ).length}
+                {consultations.filter((c) => c.status === tab.value).length}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-bg-1 border border-gray-4 rounded-[14px] overflow-hidden">
+      {/* MOBILE (< md): cards verticais — sem scroll horizontal. */}
+      <div className="md:hidden space-y-3">
+        {filtered.map((c) => {
+          const cfg = statusConfig[c.status] || statusConfig.pending;
+          return (
+            <article
+              key={c.id}
+              className="bg-bg-1 border border-gray-4 rounded-[14px] p-4 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-white font-semibold leading-tight truncate">
+                    {c.profiles?.full_name || "—"}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    <Badge variant="pink" className="text-[10px]">
+                      {packageLabels[c.package_type] || c.package_type}
+                    </Badge>
+                    <Badge variant={cfg.variant} className="text-[10px]">
+                      {cfg.label}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-4">
+                <span className="flex items-center gap-1 text-[11px] text-gray-3">
+                  <Calendar size={12} />
+                  Válida até{" "}
+                  <span className="font-mono text-gray-2">
+                    {new Date(c.valid_until).toLocaleDateString("pt-BR")}
+                  </span>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {c.status === "pending" && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => updateConsultationStatus(c.id, "in_progress")}
+                    >
+                      Iniciar
+                    </Button>
+                  )}
+                  <Link href={`/admin/consultorias/${c.id}`}>
+                    <Button variant="icon" size="icon" className="w-8 h-8">
+                      <ChevronRight size={16} />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      {/* DESKTOP (>= md): tabela densa preservada. */}
+      <div className="hidden md:block bg-bg-1 border border-gray-4 rounded-[14px] overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="border-gray-4 hover:bg-transparent">
