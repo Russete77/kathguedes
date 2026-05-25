@@ -23,6 +23,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
     }
 
+    // Gate de tamanho total — defesa de profundidade contra payload abusivo,
+    // já que o schema usa passthrough() (form evolui).
+    try {
+      const size = JSON.stringify(raw).length;
+      if (size > 80_000) {
+        return NextResponse.json(
+          { error: "Payload de anamnese muito grande" },
+          { status: 413 }
+        );
+      }
+    } catch {
+      return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+    }
+
     const parsed = submitAnamneseSchema.safeParse(raw);
     if (!parsed.success) {
       return NextResponse.json(
