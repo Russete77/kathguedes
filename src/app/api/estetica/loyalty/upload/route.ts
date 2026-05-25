@@ -20,13 +20,10 @@ export async function POST(req: NextRequest) {
 
   const form = await req.formData();
   const file = form.get("photo") as File | null;
-  const bookingId = form.get("booking_id") as string | null;
+  const bookingIdFromForm = form.get("booking_id") as string | null;
 
-  if (!file || !bookingId) {
-    return NextResponse.json(
-      { error: "Arquivo ou booking_id faltando" },
-      { status: 400 },
-    );
+  if (!file) {
+    return NextResponse.json({ error: "Arquivo faltando" }, { status: 400 });
   }
 
   if (!file.type.startsWith("image/")) {
@@ -45,39 +42,101 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminSupabaseClient();
 
-  // 1. Verificar booking pertence ao user e está concluído
-  const { data: bookingRaw } = await supabase
-    .from("estetica_bookings")
-    .select("id, status, service_id")
-    .eq("id", bookingId)
-    .eq("user_id", userId)
-    .single();
+  // 1. Resolver booking — quando o cliente envia booking_id (fluxo do per-booking
+  //    upload de /meus-agendamentos), valida estritamente. Quando NAO envia
+  //    (fluxo do /fidelidade), pega o primeiro booking `done` + elegivel +
+  //    SEM foto ainda do user. Sem booking elegivel → 422 acionavel.
+  let booking: { id: string; status: string; service_id: string } | null = null;
 
-  if (!bookingRaw) {
-    return NextResponse.json(
-      { error: "Agendamento não encontrado" },
-      { status: 404 },
+  if (bookingIdFromForm) {
+    const { data: bookingRaw } = await supabase
+      .from("estetica_bookings")
+      .select("id, status, service_id")
+      .eq("id", bookingIdFromForm)
+      .eq("user_id", userId)
+      .single();
+
+    if (!bookingRaw) {
+      return NextResponse.json(
+        { error: "Agendamento não encontrado" },
+        { status: 404 },
+      );
+    }
+    booking = bookingRaw as unknown as typeof booking;
+
+    if (booking!.status !== "done") {
+      return NextResponse.json(
+        { error: "Serviço ainda não foi concluído" },
+        { status: 400 },
+      );
+    }
+  } else {
+    // Auto-pick: primeiro booking done elegivel SEM foto.
+    const { data: candidatesRaw } = await supabase
+      .from("estetica_bookings")
+      .select("id, status, service_id, scheduled_at, estetica_services(eligible_for_loyalty)")
+      .eq("user_id", userId)
+      .eq("status", "done")
+      .order("scheduled_at", { ascending: false });
+
+    type Candidate = {
+      id: string;
+      status: string;
+      service_id: string;
+      estetica_services: { eligible_for_loyalty: boolean } | null;
+    };
+    const candidates = (candidatesRaw ?? []) as unknown as Candidate[];
+    const eligibleBookings = candidates.filter(
+      (b) => b.estetica_services?.eligible_for_loyalty === true,
     );
+
+    if (eligibleBookings.length === 0) {
+      return NextResponse.json(
+        {
+          error: "no_eligible_booking",
+          message:
+            "Você ainda não tem agendamento concluído e elegível pra fidelidade. Finalize um serviço antes de enviar a foto.",
+        },
+        { status: 422 },
+      );
+    }
+
+    // Excluir bookings que ja tem foto.
+    const eligibleIds = eligibleBookings.map((b) => b.id);
+    const { data: existingPhotos } = await supabase
+      .from("estetica_loyalty_photos")
+      .select("booking_id")
+      .eq("user_id", userId)
+      .in("booking_id", eligibleIds);
+    const usedIds = new Set(
+      (existingPhotos ?? []).map((p) => p.booking_id as string),
+    );
+    const candidate = eligibleBookings.find((b) => !usedIds.has(b.id));
+    if (!candidate) {
+      return NextResponse.json(
+        {
+          error: "no_eligible_booking",
+          message:
+            "Todos os seus agendamentos concluídos já têm foto. Finalize outro serviço pra enviar mais uma.",
+        },
+        { status: 422 },
+      );
+    }
+    booking = {
+      id: candidate.id,
+      status: candidate.status,
+      service_id: candidate.service_id,
+    };
   }
 
-  const booking = bookingRaw as unknown as {
-    id: string;
-    status: string;
-    service_id: string;
-  };
+  const bookingId = booking!.id;
 
-  if (booking.status !== "done") {
-    return NextResponse.json(
-      { error: "Serviço ainda não foi concluído" },
-      { status: 400 },
-    );
-  }
-
-  // 2. Verificar serviço é elegível pra fidelidade
+  // 2. Verificar serviço é elegível pra fidelidade (redundante no auto-pick mas
+  //    seguro pro fluxo explicito).
   const { data: serviceRaw } = await supabase
     .from("estetica_services")
     .select("eligible_for_loyalty")
-    .eq("id", booking.service_id)
+    .eq("id", booking!.service_id)
     .single();
 
   const service = serviceRaw as unknown as {

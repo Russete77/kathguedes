@@ -6,15 +6,14 @@ import { toast } from "sonner";
 import { Camera, Image as ImageIcon, Loader2, Check } from "lucide-react";
 
 interface Props {
-  bookingId: string;
+  /**
+   * Quando informado, a foto vai ser amarrada a este booking. Quando ausente,
+   * o backend escolhe o primeiro booking `done` elegivel + sem foto do user
+   * (usado pelo "Enviar foto" sem booking especifico em /fidelidade).
+   */
+  bookingId?: string;
 }
 
-/**
- * Upload de foto pra fidelidade direto na página /kath-estetica/fidelidade.
- * Dois botões:
- *  - "Tirar foto" (capture="environment" — abre câmera traseira em mobile)
- *  - "Galeria" (escolher arquivo existente)
- */
 export function LoyaltyPhotoUpload({ bookingId }: Props) {
   const router = useRouter();
   const [uploading, setUploading] = useState(false);
@@ -27,25 +26,32 @@ export function LoyaltyPhotoUpload({ bookingId }: Props) {
     try {
       const fd = new FormData();
       fd.append("photo", file);
-      fd.append("booking_id", bookingId);
+      if (bookingId) fd.append("booking_id", bookingId);
       const res = await fetch("/api/estetica/loyalty/upload", {
         method: "POST",
         body: fd,
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Erro no upload");
+        const friendly =
+          data?.message ??
+          data?.error ??
+          "Erro no upload — tente de novo em alguns instantes.";
+        throw new Error(friendly);
       }
       setUploaded(true);
       toast.success("Foto enviada! Aguarde aprovação da Kath.", {
         style: { borderLeft: "3px solid #FF0080" },
       });
-      // Refresh server-side data pra remover este booking da lista
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro no upload");
+      toast.error(err instanceof Error ? err.message : "Erro no upload", {
+        duration: 6000,
+      });
     } finally {
       setUploading(false);
+      // Reset input pra permitir reescolher o mesmo arquivo apos erro.
+      e.target.value = "";
     }
   }
 

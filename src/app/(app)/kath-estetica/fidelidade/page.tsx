@@ -141,74 +141,84 @@ export default async function FidelidadePage() {
         )}
       </div>
 
-      {/* Agendamentos prontos pra enviar foto */}
-      {bookingsNeedingPhoto.length > 0 ? (
-        <div className="bg-bg-1 border border-pink/30 rounded-[22px] p-6 space-y-4">
+      {/* Enviar foto — SEMPRE visivel. Quando ha bookings prontos, os botoes
+          amarram automaticamente a primeira lavagem concluida sem foto. Sem
+          booking elegivel, o backend devolve 422 com mensagem clara. */}
+      <div className="bg-bg-1 border border-pink/30 rounded-[22px] p-6 space-y-4">
+        <div>
+          <Badge variant="pink" className="mb-2">
+            <Camera size={12} />
+            ENVIAR FOTO
+          </Badge>
+          <h2 className="font-display text-xl text-white">
+            Enviar foto da sua moto
+          </h2>
+          <p className="text-gray-2 text-sm mt-1">
+            <strong className="text-white">Tirar foto</strong> abre a câmera traseira do celular. <strong className="text-white">Galeria</strong> pega um arquivo do aparelho.
+            {" "}A Kath aprova manualmente — só depois disso a foto entra no <strong className="text-pink">Progresso do mês</strong>.
+          </p>
+        </div>
+
+        <LoyaltyPhotoUpload />
+
+        {bookingsNeedingPhoto.length === 0 && (
+          <p className="text-[12px] text-yellow flex items-start gap-2 leading-relaxed">
+            <Clock size={12} className="stroke-yellow shrink-0 mt-0.5" />
+            Você ainda não tem agendamento concluído elegível. Conclua uma lavagem antes —
+            o envio fica disponível assim que a Kath marcar como concluído.{" "}
+            <Link
+              href="/kath-estetica/servicos"
+              className="text-pink font-semibold hover:text-pink-light"
+            >
+              Ver serviços →
+            </Link>
+          </p>
+        )}
+      </div>
+
+      {/* Lista de agendamentos prontos pra foto — quando o user tem MULTIPLAS
+          lavagens concluidas sem foto, ajuda a saber a qual o upload vai
+          amarrar. Permite tambem envio especifico por linha. */}
+      {bookingsNeedingPhoto.length > 0 && (
+        <div className="bg-bg-1 border border-gray-4 rounded-[22px] p-6 space-y-3">
           <div>
-            <Badge variant="pink" className="mb-2">
-              <Camera size={12} />
-              ENVIAR FOTOS
-            </Badge>
-            <h2 className="font-display text-xl text-white">
-              {bookingsNeedingPhoto.length} agendamento{bookingsNeedingPhoto.length > 1 ? "s" : ""} pronto{bookingsNeedingPhoto.length > 1 ? "s" : ""} pra foto
-            </h2>
-            <p className="text-gray-2 text-sm mt-1">
-              Tire a foto pela câmera ou escolha da galeria. A Kath aprova manualmente — só depois disso a foto entra no <strong className="text-pink">Progresso do mês</strong>.
+            <span className="font-mono text-[11px] text-gray-3 tracking-[0.12em] uppercase">
+              {bookingsNeedingPhoto.length === 1
+                ? "Agendamento concluído sem foto"
+                : `${bookingsNeedingPhoto.length} agendamentos concluídos sem foto`}
+            </span>
+            <p className="text-gray-2 text-xs mt-1">
+              Use os botões acima pra mandar pro mais recente — ou envie por agendamento aqui.
             </p>
           </div>
 
-          <div className="space-y-3">
-            {bookingsNeedingPhoto.map((b) => (
-              <div
-                key={b.id}
-                className="bg-bg-2 border border-gray-4 rounded-[14px] p-4 space-y-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-display text-[16px] text-white leading-tight truncate">
-                      {b.service?.title || "Serviço"}
-                    </div>
-                    <div className="text-[12px] text-gray-3 mt-1">
-                      {new Date(b.scheduled_at).toLocaleDateString("pt-BR", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                      {" · "}
-                      {b.vehicle_brand} {b.vehicle_model}
-                    </div>
+          {bookingsNeedingPhoto.map((b) => (
+            <div
+              key={b.id}
+              className="bg-bg-2 border border-gray-4 rounded-[14px] p-4 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-display text-[15px] text-white leading-tight truncate">
+                    {b.service?.title || "Serviço"}
                   </div>
-                  <Badge variant="green" className="shrink-0">
-                    Concluído
-                  </Badge>
+                  <div className="text-[11px] text-gray-3 mt-1">
+                    {new Date(b.scheduled_at).toLocaleDateString("pt-BR", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                    {" · "}
+                    {b.vehicle_brand} {b.vehicle_model}
+                  </div>
                 </div>
-                <LoyaltyPhotoUpload bookingId={b.id} />
+                <Badge variant="green" className="shrink-0">
+                  Concluído
+                </Badge>
               </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        /* Sem booking pronto — explicar o caminho. Inclui CTA pra /servicos. */
-        <div className="bg-bg-1 border border-gray-4 rounded-[22px] p-6 space-y-3">
-          <div className="flex items-center gap-2">
-            <Camera size={18} className="stroke-gray-3" />
-            <span className="font-mono text-[11px] text-gray-3 uppercase tracking-[0.12em]">
-              Envio de fotos
-            </span>
-          </div>
-          <p className="text-gray-2 text-sm leading-relaxed">
-            Você ainda não tem agendamentos concluídos para enviar foto. Quando a Kath
-            marcar uma lavagem sua como <strong className="text-white">concluída</strong>,
-            ela aparece aqui com dois botões: <strong className="text-white">Tirar foto</strong>{" "}
-            (câmera traseira do celular) ou <strong className="text-white">Galeria</strong> (escolher
-            arquivo do aparelho). Depois é só aguardar a aprovação manual.
-          </p>
-          <Link
-            href="/kath-estetica/servicos"
-            className="inline-flex items-center gap-2 text-pink text-sm font-semibold hover:text-pink-light"
-          >
-            Ver serviços disponíveis →
-          </Link>
+              <LoyaltyPhotoUpload bookingId={b.id} />
+            </div>
+          ))}
         </div>
       )}
 
