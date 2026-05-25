@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { hasPlanAccess } from "@/lib/billing/access";
 import { ChatRoom } from "./chat-room";
 import { MessageCircle } from "lucide-react";
@@ -14,9 +14,10 @@ export const metadata: Metadata = {
 
 export default async function ChatPage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin + filtro user_id pra ler o proprio plan_tier (gate VIP). Em dev sem A1 isso
+  // voltava vazio e todo mundo caia no upgrade-prompt mesmo sendo plano3/atleta.
+  const supabase = createAdminSupabaseClient();
 
-  // Verificar se é VIP
   const { data: profile } = await supabase
     .from("profiles")
     .select("plan_tier")

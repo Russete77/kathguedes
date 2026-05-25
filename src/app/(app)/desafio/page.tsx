@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
+import { PLAN_LEVELS, planLevel } from "@/lib/billing/access";
+import type { PlanTier } from "@/lib/supabase/types";
 import { auth } from "@clerk/nextjs/server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,13 +16,30 @@ export const metadata: Metadata = {
 
 export default async function DesafioPage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin client: workouts via RLS bloqueavam em dev. workout_logs idem.
+  // Workouts ainda gateados por plano (replica policy).
+  const supabase = createAdminSupabaseClient();
 
-  // Buscar treinos da semana (últimos 7 publicados)
+  const { data: profile } = userId
+    ? await supabase
+        .from("profiles")
+        .select("plan_tier")
+        .eq("id", userId)
+        .single()
+    : { data: null };
+  const userLevel = planLevel(
+    ((profile?.plan_tier as string) || "free") as PlanTier,
+  );
+  const allowedTiers = (Object.keys(PLAN_LEVELS) as PlanTier[]).filter(
+    (t) => PLAN_LEVELS[t] <= userLevel,
+  );
+
+  // Buscar treinos da semana (últimos 7 publicados, gateados por plano)
   const { data: weekWorkouts } = await supabase
     .from("workout_videos")
     .select("id, title, youtube_id, category, duration_minutes, required_plan")
     .eq("is_published", true)
+    .in("required_plan", allowedTiers)
     .order("published_at", { ascending: false })
     .limit(7);
 

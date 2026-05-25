@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { AnamneseForm } from "./anamnese-form";
 import { redirect } from "next/navigation";
 import { Settings2 } from "lucide-react";
@@ -8,7 +8,8 @@ export const metadata = { title: "Anamnese" };
 
 export default async function AnamesePage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin + filtro user_id pra ler a propria consultoria (RLS bloqueava em dev).
+  const supabase = createAdminSupabaseClient();
 
   // Buscar consultoria ativa sem anamnese (qualquer status — pode ter sido
   // entregue antes do usuário preencher)

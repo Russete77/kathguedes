@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Package, ArrowLeft, ExternalLink, Check } from "lucide-react";
@@ -103,7 +103,8 @@ function Timeline({ status }: { status: string }) {
 
 export default async function MeusPedidosPage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin + filtro user_id (RLS bloqueava lista propria em dev).
+  const supabase = createAdminSupabaseClient();
 
   if (!userId) {
     return (

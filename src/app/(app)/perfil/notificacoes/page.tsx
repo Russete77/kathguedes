@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { ArrowLeft } from "lucide-react";
 import { WellnessForm } from "./wellness-form";
 
@@ -18,7 +18,8 @@ const DEFAULT_HYDRATION = ["09:00", "12:00", "15:00", "18:00"];
 
 export default async function NotificacoesPage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin + filtro user_id (RLS bloqueava ler proprio profile/reminder em dev).
+  const supabase = createAdminSupabaseClient();
 
   const [{ data: profileRaw }, { data: reminderRaw }] = await Promise.all([
     supabase.from("profiles").select("plan_tier").eq("id", userId!).single(),

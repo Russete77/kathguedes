@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { hasPlanAccess } from "@/lib/billing/access";
 import { auth } from "@clerk/nextjs/server";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,8 @@ export const metadata: Metadata = {
 
 export default async function ConsultoriaPage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin + filtro user_id (RLS bloqueava em dev).
+  const supabase = createAdminSupabaseClient();
 
   const { data: profile } = await supabase
     .from("profiles")

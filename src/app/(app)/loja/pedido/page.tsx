@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle } from "lucide-react";
@@ -23,7 +23,8 @@ export default async function PedidoPage({ searchParams }: Props) {
     redirect("/loja");
   }
 
-  const supabase = await createServerSupabaseClient();
+  // Admin + filtro user_id (lookup do proprio pedido por id).
+  const supabase = createAdminSupabaseClient();
 
   const { data: orderData } = await supabase
     .from("orders")

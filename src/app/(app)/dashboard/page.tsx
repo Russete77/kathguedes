@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
+import { PLAN_LEVELS, planLevel } from "@/lib/billing/access";
+import type { PlanTier } from "@/lib/supabase/types";
 import { StreakBadge } from "@/components/fitness/streak-badge";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -24,7 +26,9 @@ export const metadata: Metadata = {
 export default async function DashboardPage() {
   const user = await currentUser();
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin client: profile e workouts via RLS bloqueavam em dev (sem A1).
+  // Workouts: gate manual de plano (replica workouts_select_by_plan).
+  const supabase = createAdminSupabaseClient();
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -32,10 +36,18 @@ export default async function DashboardPage() {
     .eq("id", userId!)
     .single();
 
+  const userLevel = planLevel(
+    ((profile?.plan_tier as string) || "free") as PlanTier,
+  );
+  const allowedTiers = (Object.keys(PLAN_LEVELS) as PlanTier[]).filter(
+    (t) => PLAN_LEVELS[t] <= userLevel,
+  );
+
   const { data: recentWorkouts } = await supabase
     .from("workout_videos")
     .select("id, title, youtube_id, category, duration_minutes")
     .eq("is_published", true)
+    .in("required_plan", allowedTiers)
     .order("published_at", { ascending: false })
     .limit(4);
 

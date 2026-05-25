@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createServerSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { StreakBadge } from "@/components/fitness/streak-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,8 @@ export const metadata: Metadata = {
 export default async function PerfilPage() {
   const user = await currentUser();
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin + filtro user_id (RLS bloqueava em dev mesmo lendo o proprio profile).
+  const supabase = createAdminSupabaseClient();
 
   const { data: profile } = await supabase
     .from("profiles")

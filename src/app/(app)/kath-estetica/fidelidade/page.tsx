@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Gift, Check, Clock, Camera } from "lucide-react";
 import type { EsteticaLoyaltyPhoto, EsteticaBooking, EsteticaService } from "@/lib/estetica/types";
@@ -15,7 +15,8 @@ export const metadata: Metadata = {
 
 export default async function FidelidadePage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin client + filtro explicito por user_id (paginas de dado proprio que RLS bloqueia em dev).
+  const supabase = createAdminSupabaseClient();
 
   const currentMonth = new Date().toISOString().slice(0, 7);
   const monthLabel = new Date().toLocaleDateString("pt-BR", {
