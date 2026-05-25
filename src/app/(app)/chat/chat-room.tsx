@@ -1,22 +1,79 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
-import { useRealtimeMessages } from "@/hooks/use-realtime-messages";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Send, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  listUserMessages,
+  pollUserMessages,
+  sendUserMessage,
+  type ChatMessage,
+} from "./actions";
 
-interface ChatRoomProps {
-  userId: string;
-}
+const POLL_MS = 4000;
 
-export function ChatRoom({ userId }: ChatRoomProps) {
-  const { messages, loading, sendMessage } = useRealtimeMessages(userId);
+export function ChatRoom() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastSeenIso = useRef<string | null>(null);
 
-  // Auto-scroll to bottom
+  const mergeNew = useCallback((incoming: ChatMessage[]) => {
+    if (!incoming.length) return;
+    setMessages((prev) => {
+      const seen = new Set(prev.map((m) => m.id));
+      const merged = [...prev];
+      for (const m of incoming) if (!seen.has(m.id)) merged.push(m);
+      return merged;
+    });
+    lastSeenIso.current = incoming[incoming.length - 1]!.created_at;
+  }, []);
+
+  // Carga inicial
+  useEffect(() => {
+    let cancelled = false;
+    listUserMessages()
+      .then((data) => {
+        if (cancelled) return;
+        setMessages(data);
+        if (data.length) {
+          lastSeenIso.current = data[data.length - 1]!.created_at;
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Polling 4s — substitui o realtime, que dependia de RLS em dev (quebrado
+  // pela Clerk dev/prod separation). Em prod tambem funciona normalmente.
+  useEffect(() => {
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const fresh = await pollUserMessages(lastSeenIso.current);
+        if (!cancelled && fresh.length) mergeNew(fresh);
+      } catch {
+        // silencia — proxima janela tenta de novo
+      }
+    }, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [mergeNew]);
+
+  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -29,9 +86,13 @@ export function ChatRoom({ userId }: ChatRoomProps) {
     setSending(true);
     setInput("");
     try {
-      await sendMessage(body);
-    } catch {
-      setInput(body); // Restore on error
+      const inserted = await sendUserMessage({ body });
+      mergeNew([inserted]);
+    } catch (err) {
+      setInput(body); // restore on error
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar", {
+        duration: 6000,
+      });
     } finally {
       setSending(false);
     }
@@ -75,7 +136,7 @@ export function ChatRoom({ userId }: ChatRoomProps) {
                 "max-w-[80%] px-4 py-3 rounded-[18px]",
                 incoming
                   ? "bg-bg-1 border border-gray-4 mr-auto rounded-bl-[4px]"
-                  : "bg-pink text-white ml-auto rounded-br-[4px]"
+                  : "bg-pink text-white ml-auto rounded-br-[4px]",
               )}
             >
               {incoming && senderName && (
@@ -83,11 +144,13 @@ export function ChatRoom({ userId }: ChatRoomProps) {
                   {senderName}
                 </div>
               )}
-              <p className="text-[14px] leading-relaxed">{msg.body}</p>
+              <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">
+                {msg.body}
+              </p>
               <div
                 className={cn(
                   "font-mono text-[10px] mt-1",
-                  incoming ? "text-gray-3" : "text-white/60"
+                  incoming ? "text-gray-3" : "text-white/60",
                 )}
               >
                 {new Date(msg.created_at).toLocaleTimeString("pt-BR", {
@@ -102,10 +165,7 @@ export function ChatRoom({ userId }: ChatRoomProps) {
       </div>
 
       {/* Input */}
-      <form
-        onSubmit={handleSend}
-        className="mt-4 flex gap-2 items-end"
-      >
+      <form onSubmit={handleSend} className="mt-4 flex gap-2 items-end">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

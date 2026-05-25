@@ -24,17 +24,22 @@ export default async function ChatPage() {
     .eq("id", userId!)
     .single();
 
-  // Chat exige plano3 ou superior — alinhado à RLS messages_insert_chat.
+  // Chat exige plano3 ou superior — alinhado à RLS messages_insert_chat e ao
+  // gate em codigo em sendUserMessage. Planos com acesso: Plano 3 e Atleta.
   if (!hasPlanAccess(profile?.plan_tier, "plano3")) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-6 text-center py-20">
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <MessageCircle size={48} className="stroke-gray-3 mx-auto mb-4" />
         <h2 className="font-display text-3xl text-white mb-2">
-          CHAT <span className="text-pink">EXCLUSIVO VIP</span>
+          CHAT <span className="text-pink">EXCLUSIVO</span>
         </h2>
-        <p className="text-gray-2 mb-6">
-          O chat direto com a Kath é exclusivo para assinantes VIP.
-          Faça upgrade para ter acesso.
+        <p className="text-gray-2 mb-2">
+          O chat direto com a Kath é exclusivo para os planos{" "}
+          <strong className="text-pink">Plano 3</strong> e{" "}
+          <strong className="text-pink">Atleta</strong>.
+        </p>
+        <p className="text-gray-3 text-sm mb-6">
+          SLA de resposta: 48h (Plano 3) e 12h (Atleta).
         </p>
         <Link href="/planos">
           <Button size="lg">Ver Planos</Button>
@@ -43,6 +48,9 @@ export default async function ChatPage() {
     );
   }
 
+  // Quando user esta em plano3, a SLA eh 48h; em atleta, 12h.
+  const slaHours = profile?.plan_tier === "atleta" ? 12 : 48;
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 h-[calc(100vh-120px)] flex flex-col">
       <div className="mb-4">
@@ -50,11 +58,11 @@ export default async function ChatPage() {
           CHAT COM A <span className="text-pink">KATH</span>
         </h1>
         <p className="text-gray-3 text-sm mt-1">
-          Mensagens exclusivas — resposta em até 24h.
+          Mensagens exclusivas — resposta em até {slaHours}h.
         </p>
       </div>
 
-      <ChatRoom userId={userId!} />
+      <ChatRoom />
     </div>
   );
 }
