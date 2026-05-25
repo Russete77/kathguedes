@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Car, ArrowLeft, Gift, Clock } from "lucide-react";
 import {
@@ -34,9 +34,12 @@ const statusColor: Record<EsteticaBookingStatus, "pink" | "yellow" | "white" | "
 
 export default async function MeusAgendamentosPage() {
   const { userId } = await auth();
-  const supabase = await createServerSupabaseClient();
+  // Admin client + filtro explicito por user_id. RLS estetica_bookings_select_own
+  // bloqueava em dev (sem A1) e a lista voltava vazia mesmo apos o usuario criar um
+  // booking. Seguranca preservada pelo `.eq("user_id", userId!)`.
+  const admin = createAdminSupabaseClient();
 
-  const { data: bookingsRaw } = await supabase
+  const { data: bookingsRaw } = await admin
     .from("estetica_bookings")
     .select("*, estetica_services(title, category)")
     .eq("user_id", userId!)
