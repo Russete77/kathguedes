@@ -78,21 +78,32 @@ export async function POST(req: NextRequest) {
       })
       .single();
 
+    // Fallback: se a migration 29 ainda nao foi aplicada (RPC nao existe),
+    // a rota nao deve regredir. Loga warning e segue sem o gate mensal —
+    // o tracking do clicks_count continua funcionando.
+    let gateRow: { allowed: boolean; new_count: number } | null = null;
     if (gateErr) {
-      throw new Error(`rpc try_increment_affiliate_click fail: ${gateErr.message}`);
-    }
-
-    const gateRow = gate as { allowed: boolean; new_count: number } | null;
-    if (!gateRow?.allowed) {
-      return NextResponse.json(
-        {
-          error: `Limite mensal de cliques atingido (${monthlyLimit}/mês no plano ${plan?.name ?? tier}). Faça upgrade para liberar.`,
-          code: "monthly_limit_reached",
-          limit: monthlyLimit,
-          used: gateRow?.new_count ?? null,
-        },
-        { status: 429 }
+      const isMissing = /function .*try_increment_affiliate_click.* does not exist|PGRST202/i
+        .test(gateErr.message || "");
+      if (!isMissing) {
+        throw new Error(`rpc try_increment_affiliate_click fail: ${gateErr.message}`);
+      }
+      console.warn(
+        "[affiliate/click] try_increment_affiliate_click missing — apply migration 29. Skipping monthly gate."
       );
+    } else {
+      gateRow = gate as { allowed: boolean; new_count: number } | null;
+      if (!gateRow?.allowed) {
+        return NextResponse.json(
+          {
+            error: `Limite mensal de cliques atingido (${monthlyLimit}/mês no plano ${plan?.name ?? tier}). Faça upgrade para liberar.`,
+            code: "monthly_limit_reached",
+            limit: monthlyLimit,
+            used: gateRow?.new_count ?? null,
+          },
+          { status: 429 }
+        );
+      }
     }
 
     const { error: incErr } = await supabase.rpc("increment_affiliate_clicks", { link_id: linkId });
@@ -100,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       tracked: true,
-      used: gateRow.new_count,
+      used: gateRow?.new_count ?? null,
       limit: monthlyLimit,
     });
   } catch (err) {
