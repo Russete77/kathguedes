@@ -164,9 +164,9 @@ export function SubscribeButton({
         plan: plan.slug,
         cycle,
         billingType,
-        // Tenta PRIMEIROS20 (10% OFF primeiros 20 clientes). Se esgotou,
+        // Tenta PRIMEIROS100 (10% OFF primeiros 100 clientes). Se esgotou,
         // server segue com preco cheio sem erro — promoApplied informa no UI.
-        promoSlug: "PRIMEIROS20",
+        promoSlug: "PRIMEIROS100",
       };
       // Manda o CPF do input se foi coletado nesta sessao; senao backend usa profile.cpf
       const cpfDigits = digitsOnly(cpfInput);
@@ -389,7 +389,7 @@ export function SubscribeButton({
                   )}
                 </p>
                 <p className="text-[11px] text-pink/80 font-medium">
-                  10% OFF para os 20 primeiros clientes — ja aplicado automaticamente.
+                  10% OFF para os 100 primeiros clientes — ja aplicado automaticamente.
                 </p>
               </div>
             </>
