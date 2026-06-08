@@ -14,12 +14,16 @@ import type { PlanTier } from "@/lib/supabase/types";
 /**
  * Checkout do modelo semestral/anual (migration 43).
  *
- * Dois fluxos, conforme a forma de pagamento:
- *  - PIX / BOLETO  → assinatura recorrente (createSubscription) com cycle
- *                    SEMIANNUALLY/YEARLY. Cobra o valor cheio à vista a cada
- *                    ciclo e renova sozinho.
- *  - CARTÃO        → cobrança parcelada única (createPayment + installmentCount
- *                    6/12), NÃO recorrente. Ao fim do período o aluno reassina.
+ * Três fluxos, conforme forma de pagamento e ciclo:
+ *  - PIX / BOLETO           → assinatura recorrente (createSubscription) com cycle
+ *                             SEMIANNUALLY/YEARLY. Cobra o valor cheio à vista a
+ *                             cada ciclo e renova sozinho.
+ *  - CARTÃO + mensal        → cobrança avulsa (createPayment). Ao fim do mês o
+ *                             aluno reassina manualmente.
+ *  - CARTÃO + semestral/anual → assinatura mensal (createSubscription MONTHLY +
+ *                             maxPayments 6/12). Cobra apenas a parcela mensal por
+ *                             mês; o usuário precisa ter só a 1ª parcela disponível
+ *                             no limite do cartão.
  *
  * O plan_tier NÃO é ativado aqui — isso acontece no webhook PAYMENT_CONFIRMED,
  * que lê plano+ciclo do externalReference (`userId:plan:cycle`).
@@ -155,32 +159,53 @@ export async function processCheckout(
   let installmentCount: number | undefined;
 
   if (billingType === "CREDIT_CARD") {
-    installmentCount = cyclePrice.months; // 1 (mensal), 6 (semestral) ou 12 (anual)
-    const payment = await createPayment(
-      installmentCount > 1
-        ? {
-            customer: customerId,
-            billingType: "CREDIT_CARD",
-            // Parcelamento: totalValue + installmentCount (Asaas divide automaticamente)
-            totalValue: chargedValue,
-            installmentCount,
-            dueDate,
-            description,
-            externalReference,
-          }
-        : {
-            customer: customerId,
-            billingType: "CREDIT_CARD",
-            // Pagamento avulso (mensal): usa `value`, sem installmentCount
-            value: chargedValue,
-            dueDate,
-            description,
-            externalReference,
-          },
-    );
-    paymentId = payment.id;
-    invoiceUrl = payment.invoiceUrl;
-    if (installmentCount === 1) installmentCount = undefined;
+    if (cycle === "mensal") {
+      // Mensal: pagamento avulso (cobrança única, sem recorrência)
+      const payment = await createPayment({
+        customer: customerId,
+        billingType: "CREDIT_CARD",
+        value: chargedValue,
+        dueDate,
+        description,
+        externalReference,
+      });
+      paymentId = payment.id;
+      invoiceUrl = payment.invoiceUrl;
+    } else {
+      // Semestral/anual: assinatura mensal com maxPayments.
+      // Cobra apenas a parcela mensal por mês — não compromete o total no limite
+      // do cartão. O usuário precisa ter só a primeira parcela disponível.
+      const monthlyValue =
+        Math.round((chargedValue / cyclePrice.months) * 100) / 100;
+      const subscription = await createSubscription({
+        customer: customerId,
+        billingType: "CREDIT_CARD",
+        value: monthlyValue,
+        nextDueDate: dueDate,
+        cycle: "MONTHLY",
+        maxPayments: cyclePrice.months,
+        description,
+        externalReference,
+      });
+      subscriptionId = subscription.id;
+      installmentCount = cyclePrice.months;
+
+      await supabase
+        .from("profiles")
+        .update({ asaas_subscription_id: subscription.id })
+        .eq("id", userId);
+
+      // Busca o 1º pagamento para invoiceUrl (mesmo padrão do fluxo PIX/BOLETO).
+      try {
+        await new Promise((r) => setTimeout(r, 1500));
+        const payments = await getSubscriptionPayments(subscription.id);
+        if (payments.length > 0) {
+          invoiceUrl = payments[0].invoiceUrl;
+        }
+      } catch (err) {
+        console.warn("[checkout] Could not fetch payment invoiceUrl:", err);
+      }
+    }
   } else {
     // ── Fluxo recorrente (PIX/BOLETO) ──
     const subscription = await createSubscription({

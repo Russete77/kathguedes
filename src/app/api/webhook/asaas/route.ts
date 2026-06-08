@@ -533,19 +533,22 @@ async function handleMensalidadePayment(
     currentEndsAt.getTime() > now.getTime();
 
   // ── Cálculo do fim do acesso ──
-  // Recorrente (PIX/boleto): cada cobrança do ciclo ESTENDE o acesso a partir
-  //   do maior entre agora e o fim atual (renovação acumula).
-  // Parcelado (cartão, sem subscription): é UMA compra do período inteiro,
-  //   billada em N parcelas. Concede o período só na 1ª ativação; as parcelas
-  //   seguintes registram receita/cashback mas NÃO estendem o acesso.
+  // Recorrente PIX/BOLETO (SEMIANNUALLY/YEARLY): cada cobrança do ciclo estende
+  //   pelo período total (6 ou 12 meses).
+  // Recorrente CREDIT_CARD (MONTHLY + maxPayments): cada parcela mensal estende
+  //   1 mês — a subscription não compromete o limite total do cartão.
+  // Parcelado legado (cartão sem subscription): ativa-uma-vez.
+  const extensionMonths =
+    isRecurring && payment.billingType === "CREDIT_CARD" ? 1 : periodMonths;
+
   let grantAccess = true;
   let newEndsAt: Date;
   if (isRecurring) {
     const anchor = currentEndsAt && currentEndsAt.getTime() > now.getTime() ? currentEndsAt : now;
     newEndsAt = new Date(anchor);
-    newEndsAt.setMonth(newEndsAt.getMonth() + periodMonths);
+    newEndsAt.setMonth(newEndsAt.getMonth() + extensionMonths);
   } else {
-    // Parcelado: ativa-uma-vez. Se já está ativo no futuro, não re-estende.
+    // Parcelado legado: ativa-uma-vez. Se já está ativo no futuro, não re-estende.
     if (isActiveFuture) {
       grantAccess = false;
       newEndsAt = currentEndsAt!;

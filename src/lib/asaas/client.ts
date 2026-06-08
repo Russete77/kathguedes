@@ -150,6 +150,7 @@ interface CreateSubscriptionParams {
   cycle: "MONTHLY" | "QUARTERLY" | "SEMIANNUALLY" | "YEARLY";
   description: string;
   externalReference?: string;
+  maxPayments?: number; // encerra a subscription automaticamente após N cobranças
 }
 
 interface AsaasSubscription {
