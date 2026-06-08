@@ -7,9 +7,9 @@ import path from "node:path";
 const cspDirectives = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com https://*.kathguedes.com.br https://challenges.cloudflare.com https://*.vercel-scripts.com https://www.youtube.com https://*.asaas.com",
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
+  "font-src 'self' data: https://fonts.gstatic.com",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.clerk.accounts.dev https://*.clerk.com https://*.kathguedes.com.br https://clerk-telemetry.com https://*.clerk-telemetry.com https://*.asaas.com https://vitals.vercel-insights.com",
   "frame-src 'self' https://*.clerk.accounts.dev https://*.kathguedes.com.br https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://*.asaas.com",
   "media-src 'self' https: data: blob:",

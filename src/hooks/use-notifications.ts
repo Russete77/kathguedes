@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useSupabase } from "@/lib/supabase/client";
 
 export interface AppNotification {
@@ -14,12 +15,15 @@ export interface AppNotification {
 }
 
 export function useNotifications(userId: string) {
+  const { isLoaded, isSignedIn } = useAuth();
   const supabase = useSupabase();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Fetch initial
+  // Fetch inicial: aguarda Clerk carregar o JWT antes de fazer a request.
+  // Sem este guard, o primeiro render dispara com token null -> 401 do Supabase RLS.
   useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
     supabase
       .from("notifications")
       .select("*")
@@ -32,7 +36,7 @@ export function useNotifications(userId: string) {
           setUnreadCount(data.filter((n) => !n.is_read).length);
         }
       });
-  }, [supabase, userId]);
+  }, [supabase, userId, isLoaded, isSignedIn]);
 
   // Realtime — novas notificações
   useEffect(() => {
