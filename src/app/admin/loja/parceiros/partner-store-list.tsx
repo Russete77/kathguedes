@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { Store, Pencil, Trash2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { deletePartnerStore, togglePartnerStoreActive } from "@/app/admin/actions";
@@ -64,11 +63,10 @@ export function PartnerStoreList({ stores }: { stores: PartnerStore[] }) {
           {/* Logo ou ícone fallback */}
           <div className="w-10 h-10 rounded-xl bg-bg-2 border border-gray-4 flex items-center justify-center shrink-0 overflow-hidden">
             {store.logo_url ? (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={store.logo_url}
                 alt={store.name}
-                width={40}
-                height={40}
                 className="object-cover w-full h-full"
               />
             ) : (

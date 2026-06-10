@@ -1011,7 +1011,18 @@ export async function getPartnerStores() {
     .from("partner_stores" as never)
     .select("*")
     .order("name", { ascending: true });
-  if (error) throw new Error(error.message);
+  // 42P01 = relation does not exist (migration ainda não aplicada) — degradar graciosamente
+  if (error) {
+    if ((error as { code?: string }).code !== "42P01") throw new Error(error.message);
+    return [] as Array<{
+      id: string;
+      name: string;
+      whatsapp_number: string;
+      logo_url: string | null;
+      is_active: boolean;
+      created_at: string;
+    }>;
+  }
   return data as Array<{
     id: string;
     name: string;
