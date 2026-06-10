@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
-import { StoreGrid } from "./store-grid";
+import { StoreGrid, type StoreProduct } from "./store-grid";
 import Link from "next/link";
 import { ShoppingBag, Sparkles, Bell, Shirt, Dumbbell, Droplet, PlayCircle } from "lucide-react";
 import { getStoreDiscountPct } from "@/lib/billing/plans";
@@ -26,17 +26,15 @@ export default async function LojaPage() {
   // RLS aqui esbarra na integracao Clerk↔Supabase em dev.
   const admin = createAdminSupabaseClient();
 
-  const { data: products } = await admin
-    .from("products")
-    .select("*")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("plan_tier")
-    .eq("id", userId!)
-    .single();
+  const [{ data: rawProducts }, { data: profile }, { data: partnerStores }] = await Promise.all([
+    admin
+      .from("products")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true }),
+    admin.from("profiles").select("plan_tier").eq("id", userId!).single(),
+    admin.from("partner_stores" as never).select("id, name, whatsapp_number").eq("is_active" as never, true),
+  ]);
 
   const planTier = ((profile?.plan_tier as string) || "start") as PlanTier;
 
@@ -44,6 +42,18 @@ export default async function LojaPage() {
     getStoreDiscountPct(planTier),
     getWalletActiveCents(userId!),
   ]);
+
+  // Junção em JS — evita depender de tipo gerado (migration pode não estar refletida em types.ts)
+  type PSRow = { id: string; name: string; whatsapp_number: string };
+  const partnerStoreMap = new Map<string, PSRow>(
+    ((partnerStores as PSRow[] | null) ?? []).map((ps) => [ps.id, ps]),
+  );
+  const products = ((rawProducts ?? []) as Array<Record<string, unknown>>).map((p) => ({
+    ...p,
+    partner_stores: p.partner_store_id
+      ? (partnerStoreMap.get(p.partner_store_id as string) ?? null)
+      : null,
+  })) as unknown as StoreProduct[];
 
   if (!products?.length) {
     const categories = [

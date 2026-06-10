@@ -21,6 +21,7 @@ import {
   Heart,
   Dumbbell,
   Sparkles,
+  Store,
 } from "lucide-react";
 
 interface NavItem {
@@ -41,6 +42,7 @@ const appNav: NavItem[] = [
   { href: "/admin/consultorias", label: "Consultorias", icon: Settings2 },
   { href: "/admin/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/admin/loja", label: "Loja", icon: ShoppingBag },
+  { href: "/admin/loja/parceiros", label: "Lojas Parceiras", icon: Store },
   { href: "/admin/chat", label: "Chat VIP", icon: MessageCircle },
   { href: "/admin/push", label: "Push", icon: Bell },
   { href: "/admin/financeiro", label: "Financeiro", icon: Banknote },

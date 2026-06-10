@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag, Plus, Minus, Trash2, Truck, Loader2, ChevronDown } from "lucide-react";
+import { ShoppingBag, Plus, Minus, Trash2, Truck, Loader2, ChevronDown, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import CashbackInput from "@/components/billing/cashback-input";
 
@@ -19,7 +19,13 @@ interface ShippingQuote {
   logo_url?: string;
 }
 
-interface Product {
+export interface PartnerStore {
+  id: string;
+  name: string;
+  whatsapp_number: string;
+}
+
+export interface StoreProduct {
   id: string;
   title: string;
   description: string | null;
@@ -32,7 +38,11 @@ interface Product {
   height_cm: number | null;
   width_cm: number | null;
   length_cm: number | null;
+  partner_stores: PartnerStore | null;
 }
+
+// Keep local alias for internal use
+type Product = StoreProduct;
 
 interface CartItem {
   product: Product;
@@ -47,12 +57,18 @@ function discountedPrice(cents: number, discountPct: number): number {
   return Math.round(cents * (1 - discountPct / 100));
 }
 
+function buildWhatsAppUrl(whatsappNumber: string, productTitle: string, priceCents: number): string {
+  const price = formatPrice(priceCents);
+  const text = `Olá! Tenho interesse em: *${productTitle}* — ${price}\n\nVim pelo app da Kath Guedes.`;
+  return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+}
+
 export function StoreGrid({
   products,
   storeDiscountPct,
   activeCashbackCents = 0,
 }: {
-  products: Product[];
+  products: StoreProduct[];
   storeDiscountPct: number;
   activeCashbackCents?: number;
 }) {
@@ -309,15 +325,27 @@ export function StoreGrid({
                     </span>
                   )}
                 </div>
-                <Button
-                  size="sm"
-                  className="w-full"
-                  onClick={() => addToCart(p)}
-                  disabled={p.stock <= 0}
-                >
-                  <ShoppingBag size={14} />
-                  {p.stock > 0 ? "Adicionar" : "Esgotado"}
-                </Button>
+                {p.partner_stores ? (
+                  <a
+                    href={buildWhatsAppUrl(p.partner_stores.whatsapp_number, p.title, finalPrice)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-[8px] px-4 py-2 text-sm font-semibold bg-[#25D366] hover:bg-[#1ebe5b] text-white transition-colors"
+                  >
+                    <MessageCircle size={14} />
+                    Comprar pelo WhatsApp
+                  </a>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => addToCart(p)}
+                    disabled={p.stock <= 0}
+                  >
+                    <ShoppingBag size={14} />
+                    {p.stock > 0 ? "Adicionar" : "Esgotado"}
+                  </Button>
+                )}
               </div>
             </div>
           );

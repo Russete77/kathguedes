@@ -124,6 +124,25 @@ export const createProductSchema = z.object({
   height_cm: z.coerce.number().int().min(1).default(10),
   width_cm: z.coerce.number().int().min(1).default(20),
   length_cm: z.coerce.number().int().min(1).default(30),
+  // Loja parceira — se preenchido, produto vai para WhatsApp externo (não entra no carrinho)
+  partner_store_id: z.preprocess(
+    (v) => (v === "" || v === "__none__" || v == null ? null : v),
+    z.string().uuid().nullable().optional(),
+  ),
+});
+
+// ── Partner Stores ──
+export const createPartnerStoreSchema = z.object({
+  name: z.string().min(1, "Nome obrigatório").max(200),
+  // Aceita formatos com ou sem + e espaços — guarda só dígitos
+  whatsapp_number: z.string()
+    .min(10, "Número inválido")
+    .max(20)
+    .transform((v) => v.replace(/\D/g, "")),
+  logo_url: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    z.string().url("URL inválida").nullable().optional(),
+  ),
 });
 
 // ── Consultation ──

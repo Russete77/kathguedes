@@ -13,6 +13,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
+interface PartnerStore {
+  id: string;
+  name: string;
+  whatsapp_number: string;
+}
+
 interface Product {
   id: string;
   title: string;
@@ -28,14 +34,16 @@ interface Product {
   height_cm: number | null;
   width_cm: number | null;
   length_cm: number | null;
+  partner_store_id?: string | null;
 }
 
 interface ProductFormProps {
   product?: Product;
+  partnerStores?: PartnerStore[];
   children?: ReactNode;
 }
 
-export function ProductForm({ product, children }: ProductFormProps) {
+export function ProductForm({ product, partnerStores = [], children }: ProductFormProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const isEditing = !!product;
@@ -193,6 +201,31 @@ export function ProductForm({ product, children }: ProductFormProps) {
               </Select>
             </div>
           </div>
+          {/* Loja Parceira */}
+          {partnerStores.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <label className="text-[12px] font-semibold text-gray-2 tracking-[0.06em] uppercase">
+                Loja Parceira (WhatsApp)
+              </label>
+              <Select name="partner_store_id" defaultValue={product?.partner_store_id ?? "__none__"}>
+                <SelectTrigger className="bg-bg-1 border-gray-4 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-bg-2 border-gray-4">
+                  <SelectItem value="__none__">— Carrinho normal —</SelectItem>
+                  {partnerStores.map((ps) => (
+                    <SelectItem key={ps.id} value={ps.id}>
+                      {ps.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-3">
+                Se selecionada, o produto exibe &quot;Comprar pelo WhatsApp&quot; e não entra no carrinho.
+              </p>
+            </div>
+          )}
+
           <div className="rounded-md bg-bg-2 border border-gray-4 p-3 text-sm text-gray-2">
             <strong className="text-gray-1">Descontos por plano:</strong> aplicados automaticamente
             conforme a tabela <a href="/admin/plans" className="underline text-pink">Planos</a>.

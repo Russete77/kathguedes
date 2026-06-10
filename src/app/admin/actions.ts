@@ -11,6 +11,7 @@ import {
   createCouponSchema,
   createAffiliateSchema,
   createProductSchema,
+  createPartnerStoreSchema,
   updateConsultationSchema,
   parseFormData,
 } from "@/lib/validations";
@@ -961,6 +962,7 @@ export async function createProduct(formData: FormData) {
     height_cm: data.height_cm,
     width_cm: data.width_cm,
     length_cm: data.length_cm,
+    partner_store_id: data.partner_store_id ?? null,
     is_active: true,
   });
 
@@ -990,10 +992,93 @@ export async function updateProduct(id: string, formData: FormData) {
       height_cm: data.height_cm,
       width_cm: data.width_cm,
       length_cm: data.length_cm,
+      partner_store_id: data.partner_store_id ?? null,
     })
     .eq("id", id);
 
   if (error) throw new Error(error.message);
+  revalidatePath("/admin/loja");
+}
+
+// ══════════════════════════════════════════
+// LOJA — LOJAS PARCEIRAS
+// ══════════════════════════════════════════
+
+export async function getPartnerStores() {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+  const { data, error } = await supabase
+    .from("partner_stores" as never)
+    .select("*")
+    .order("name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data as Array<{
+    id: string;
+    name: string;
+    whatsapp_number: string;
+    logo_url: string | null;
+    is_active: boolean;
+    created_at: string;
+  }>;
+}
+
+export async function createPartnerStore(formData: FormData) {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+  const data = parseFormData(createPartnerStoreSchema, formData);
+  const { error } = await supabase.from("partner_stores" as never).insert({
+    name: data.name,
+    whatsapp_number: data.whatsapp_number,
+    logo_url: data.logo_url ?? null,
+  } as never);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/loja/parceiros");
+  revalidatePath("/admin/loja");
+}
+
+export async function updatePartnerStore(id: string, formData: FormData) {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+  const data = parseFormData(createPartnerStoreSchema, formData);
+  const { error } = await supabase
+    .from("partner_stores" as never)
+    .update({
+      name: data.name,
+      whatsapp_number: data.whatsapp_number,
+      logo_url: data.logo_url ?? null,
+    } as never)
+    .eq("id" as never, id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/loja/parceiros");
+  revalidatePath("/admin/loja");
+}
+
+export async function deletePartnerStore(id: string) {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+  // Desvincula produtos antes de deletar
+  await supabase
+    .from("products")
+    .update({ partner_store_id: null } as never)
+    .eq("partner_store_id" as never, id);
+  const { error } = await supabase
+    .from("partner_stores" as never)
+    .delete()
+    .eq("id" as never, id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/loja/parceiros");
+  revalidatePath("/admin/loja");
+}
+
+export async function togglePartnerStoreActive(id: string, active: boolean) {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+  const { error } = await supabase
+    .from("partner_stores" as never)
+    .update({ is_active: active } as never)
+    .eq("id" as never, id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/loja/parceiros");
   revalidatePath("/admin/loja");
 }
 

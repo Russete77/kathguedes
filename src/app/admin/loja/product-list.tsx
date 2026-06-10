@@ -4,9 +4,15 @@ import { toggleProductActive, deleteProduct } from "../actions";
 import { ProductForm } from "./product-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ToggleLeft, ToggleRight, ShoppingBag, Pencil, Trash2 } from "lucide-react";
+import { ToggleLeft, ToggleRight, ShoppingBag, Pencil, Trash2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+interface PartnerStore {
+  id: string;
+  name: string;
+  whatsapp_number: string;
+}
 
 interface ProductRow {
   id: string;
@@ -24,13 +30,14 @@ interface ProductRow {
   height_cm: number | null;
   width_cm: number | null;
   length_cm: number | null;
+  partner_store_id?: string | null;
 }
 
 function formatPrice(cents: number) {
   return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
 }
 
-export function ProductList({ products }: { products: ProductRow[] }) {
+export function ProductList({ products, partnerStores = [] }: { products: ProductRow[]; partnerStores?: PartnerStore[] }) {
   async function handleDelete(id: string, title: string) {
     if (!confirm(`Deseja deletar o produto "${title}"?`)) return;
 
@@ -74,7 +81,15 @@ export function ProductList({ products }: { products: ProductRow[] }) {
                     style={{ backgroundImage: `url(${p.image_url})` }}
                   />
                   <div>
-                    <div className="text-white font-medium text-sm">{p.title}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-medium text-sm">{p.title}</span>
+                      {p.partner_store_id && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-success bg-success/10 border border-success/30 rounded-full px-2 py-0.5">
+                          <MessageCircle size={10} />
+                          WPP
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[11px] text-gray-3">{p.category}</div>
                   </div>
                 </div>
@@ -105,7 +120,7 @@ export function ProductList({ products }: { products: ProductRow[] }) {
                   >
                     {p.is_active ? <ToggleRight size={16} className="text-success" /> : <ToggleLeft size={16} />}
                   </Button>
-                  <ProductForm product={p}>
+                  <ProductForm product={p} partnerStores={partnerStores}>
                     <Button variant="icon" size="icon" className="w-8 h-8">
                       <Pencil size={16} className="text-pink" />
                     </Button>
