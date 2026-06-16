@@ -50,6 +50,11 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "cf.shopee.com.br" },
       { protocol: "https", hostname: "down-br.img.susercontent.com" },
       { protocol: "https", hostname: "images.unsplash.com" },
+      // Google Drive: links de compartilhamento são normalizados para o CDN
+      // lh3.googleusercontent.com (ver src/lib/images.ts). drive.google.com fica
+      // como fallback para links já salvos antes da normalização.
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "drive.google.com" },
     ],
   },
   async headers() {

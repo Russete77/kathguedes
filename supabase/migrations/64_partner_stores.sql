@@ -1,5 +1,8 @@
--- migration_partner_stores.sql
--- Lojas parceiras com venda via WhatsApp externo.
+-- ============================================================================
+-- MIGRATION 64: partner_stores — lojas parceiras com venda via WhatsApp externo
+-- ============================================================================
+-- (movida de supabase/migration_partner_stores.sql para entrar na numeracao
+--  sequencial e ser aplicada por supabase db push / CI.)
 -- Produtos vinculados a um parceiro exibem botão "Comprar pelo WhatsApp"
 -- em vez de entrar no carrinho da KathApp.
 

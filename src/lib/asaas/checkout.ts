@@ -62,6 +62,22 @@ const ASAAS_CYCLE: Record<BillingCycle, "SEMIANNUALLY" | "YEARLY" | "MONTHLY"> =
   mensal: "MONTHLY",
 };
 
+/**
+ * Estorna um slot de promo consumido por `claim_promo_slot`.
+ * Usado quando a cobrança falha no Asaas ou quando a promo não se aplica
+ * àquela forma de pagamento — evita vazar slots da promo (ex.: PRIMEIROS100).
+ */
+async function releasePromoSlot(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  promoId: string,
+): Promise<void> {
+  try {
+    await supabase.rpc("release_promo_slot" as never, { p_id: promoId } as never);
+  } catch (err) {
+    console.warn("[checkout] release_promo_slot fail:", err);
+  }
+}
+
 export async function processCheckout(
   params: CheckoutParams,
 ): Promise<CheckoutResult> {
@@ -88,6 +104,9 @@ export async function processCheckout(
   //    mínimo exigido pelo Asaas (R$5/parcela), causando rejeição 4xx.
   let chargedValue = cyclePrice.asaasValue;
   let promoCodeId: string | undefined;
+  // Slot consumido atomicamente (mesmo que ainda não aplicado): guardado para
+  // estornar caso a cobrança falhe mais adiante.
+  let claimedPromoId: string | undefined;
   if (promoSlug && promoSlug.trim().length > 0) {
     try {
       const { data: promoRaw } = await supabase.rpc(
@@ -99,6 +118,7 @@ export async function processCheckout(
         | null
         | undefined;
       if (promo) {
+        claimedPromoId = promo.id;
         const discountPct = promo.discount_pct ?? 0;
         if (discountPct > 0) {
           // Percentual: aplica a todas as formas de pagamento
@@ -108,6 +128,11 @@ export async function processCheckout(
           // Valor fixo: somente PIX/BOLETO
           chargedValue = promo.promo_value_cents / 100;
           promoCodeId = promo.id;
+        } else {
+          // Slot consumido, mas a promo não se aplica a esta forma de pagamento
+          // (valor fixo no cartão): estorna imediatamente para não vazar.
+          await releasePromoSlot(supabase, promo.id);
+          claimedPromoId = undefined;
         }
       }
     } catch (err) {
@@ -158,6 +183,8 @@ export async function processCheckout(
   let paymentId: string | undefined;
   let installmentCount: number | undefined;
 
+  // Cria a cobrança no Asaas. Se falhar, estorna o slot de promo consumido.
+  try {
   if (billingType === "CREDIT_CARD") {
     if (cycle === "mensal") {
       // Mensal: pagamento avulso (cobrança única, sem recorrência)
@@ -243,6 +270,14 @@ export async function processCheckout(
     } catch (err) {
       console.warn("[checkout] Could not fetch payment invoiceUrl:", err);
     }
+  }
+  } catch (err) {
+    // Cobrança falhou (ex.: cartão recusado, 4xx Asaas): estorna o slot de promo
+    // consumido para não queimar slots da promo dos primeiros clientes.
+    if (claimedPromoId) {
+      await releasePromoSlot(supabase, claimedPromoId);
+    }
+    throw err;
   }
 
   // 3. Salva promo no profile (se houve).

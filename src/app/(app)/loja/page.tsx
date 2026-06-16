@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ShoppingBag, Sparkles, Bell, Shirt, Dumbbell, Droplet, PlayCircle } from "lucide-react";
 import { getStoreDiscountPct } from "@/lib/billing/plans";
 import { getWalletActiveCents } from "@/lib/billing/wallet";
+import { normalizeImageUrl } from "@/lib/images";
 import type { PlanTier } from "@/lib/supabase/types";
 
 export const metadata: Metadata = {
@@ -50,6 +51,8 @@ export default async function LojaPage() {
   );
   const products = ((rawProducts ?? []) as Array<Record<string, unknown>>).map((p) => ({
     ...p,
+    // Normaliza links do Google Drive já salvos para o CDN que aceita hotlink.
+    image_url: normalizeImageUrl((p.image_url as string) ?? ""),
     partner_stores: p.partner_store_id
       ? (partnerStoreMap.get(p.partner_store_id as string) ?? null)
       : null,

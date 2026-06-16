@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag, Plus, Minus, Trash2, Truck, Loader2, ChevronDown, MessageCircle } from "lucide-react";
+import { ShoppingBag, Plus, Minus, Trash2, Truck, Loader2, ChevronDown, MessageCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import CashbackInput from "@/components/billing/cashback-input";
 
@@ -79,6 +79,7 @@ export function StoreGrid({
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [cashbackCents, setCashbackCents] = useState(0);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Shipping
   const [shippingQuotes, setShippingQuotes] = useState<ShippingQuote[]>([]);
@@ -275,7 +276,9 @@ export function StoreGrid({
       {/* Product Grid */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {products.map((p) => {
-          const disc = storeDiscountPct;
+          // Produtos de loja parceira são vendidos pelo parceiro no WhatsApp —
+          // a promoção/desconto da loja KathApp não se aplica a eles.
+          const disc = p.partner_stores ? 0 : storeDiscountPct;
           const finalPrice = discountedPrice(p.price_cents, disc);
 
           return (
@@ -283,7 +286,10 @@ export function StoreGrid({
               key={p.id}
               className="bg-bg-1 border border-gray-4 rounded-[22px] overflow-hidden transition-all duration-200 hover:border-pink/40 hover:-translate-y-0.5 group"
             >
-              <div className="h-[200px] bg-bg-2 relative overflow-hidden">
+              <div
+                onClick={() => setSelectedProduct(p)}
+                className="h-[200px] bg-bg-2 relative overflow-hidden cursor-pointer"
+              >
                 {p.image_url ? (
                   <Image
                     src={p.image_url}
@@ -312,9 +318,21 @@ export function StoreGrid({
                 <div className="font-mono text-[10px] text-gray-3 uppercase tracking-[0.1em] mb-1">
                   {p.category}
                 </div>
-                <h3 className="font-bold text-[15px] text-white mb-2 line-clamp-1">
+                <h3
+                  onClick={() => setSelectedProduct(p)}
+                  className="font-bold text-[15px] text-white mb-2 line-clamp-1 cursor-pointer hover:text-pink transition-colors"
+                >
                   {p.title}
                 </h3>
+                {p.description && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProduct(p)}
+                    className="text-[12px] text-gray-3 hover:text-pink underline underline-offset-2 mb-1 transition-colors"
+                  >
+                    Ver detalhes
+                  </button>
+                )}
                 <div className="flex items-baseline gap-2 mb-3">
                   <span className="font-display text-[24px] leading-none text-pink">
                     {formatPrice(finalPrice)}
@@ -570,6 +588,96 @@ export function StoreGrid({
           </div>
         </div>
       )}
+
+      {/* Modal de detalhe do produto */}
+      {selectedProduct && (() => {
+        const sp = selectedProduct;
+        const spDisc = sp.partner_stores ? 0 : storeDiscountPct;
+        const spPrice = discountedPrice(sp.price_cents, spDisc);
+        return (
+          <div className="fixed inset-0 z-[70] overflow-y-auto">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setSelectedProduct(null)}
+            />
+            <div className="relative min-h-full flex items-end sm:items-center justify-center sm:p-4">
+              <div className="relative bg-bg-1 border border-gray-4 rounded-t-[22px] sm:rounded-[22px] w-full max-w-md sm:my-auto overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setSelectedProduct(null)}
+                  aria-label="Fechar"
+                  className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+                <div className="h-[260px] bg-bg-2 relative">
+                  {sp.image_url ? (
+                    <Image
+                      src={sp.image_url}
+                      alt={sp.title}
+                      fill
+                      sizes="(max-width: 640px) 100vw, 28rem"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center">
+                      <ShoppingBag size={56} className="stroke-gray-3" />
+                    </div>
+                  )}
+                  {spDisc > 0 && (
+                    <Badge variant="solid" className="absolute top-3 left-3">
+                      -{spDisc}%
+                    </Badge>
+                  )}
+                </div>
+                <div className="p-5">
+                  <div className="font-mono text-[10px] text-gray-3 uppercase tracking-[0.1em] mb-1">
+                    {sp.category}
+                  </div>
+                  <h3 className="font-bold text-xl text-white mb-2">{sp.title}</h3>
+                  <div className="flex items-baseline gap-2 mb-3">
+                    <span className="font-display text-[28px] leading-none text-pink">
+                      {formatPrice(spPrice)}
+                    </span>
+                    {(sp.compare_price || spDisc > 0) && (
+                      <span className="font-mono text-[13px] text-gray-3 line-through">
+                        {formatPrice(sp.compare_price || sp.price_cents)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-2 text-sm leading-relaxed whitespace-pre-line mb-5">
+                    {sp.description?.trim() ? sp.description : "Sem descrição."}
+                  </p>
+                  {sp.partner_stores ? (
+                    <a
+                      href={buildWhatsAppUrl(sp.partner_stores.whatsapp_number, sp.title, spPrice)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-[8px] px-4 py-3 text-sm font-semibold bg-[#25D366] hover:bg-[#1ebe5b] text-white transition-colors"
+                    >
+                      <MessageCircle size={16} />
+                      Comprar pelo WhatsApp
+                    </a>
+                  ) : (
+                    <Button
+                      size="lg"
+                      className="w-full"
+                      onClick={() => {
+                        addToCart(sp);
+                        setSelectedProduct(null);
+                      }}
+                      disabled={sp.stock <= 0}
+                    >
+                      <ShoppingBag size={16} />
+                      {sp.stock > 0 ? "Adicionar ao carrinho" : "Esgotado"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

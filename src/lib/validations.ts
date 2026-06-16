@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { WORKOUT_CATEGORY_VALUES } from "@/constants/categories";
+import { normalizeImageUrl } from "@/lib/images";
 
 // ── Plan Tiers ──
 export const planTierSchema = z.enum(["start", "evolucao", "saude_completa", "atleta"]);
@@ -100,7 +101,7 @@ export const createCouponSchema = z.object({
 export const createAffiliateSchema = z.object({
   title: z.string().min(1, "Título obrigatório").max(200),
   description: z.string().max(2000).nullable().optional(),
-  image_url: z.string().url("URL da imagem inválida"),
+  image_url: z.string().url("URL da imagem inválida").transform(normalizeImageUrl),
   module: z.enum(["fitness"]),
   category: z.string().min(1, "Categoria obrigatória").max(100),
   platform: z.enum(["amazon", "mercadolivre", "shopee", "direto"]),
@@ -112,7 +113,7 @@ export const createAffiliateSchema = z.object({
 export const createProductSchema = z.object({
   title: z.string().min(1, "Título obrigatório").max(200),
   description: z.string().max(2000).nullable().optional(),
-  image_url: z.string().url("URL da imagem inválida"),
+  image_url: z.string().url("URL da imagem inválida").transform(normalizeImageUrl),
   price_cents: z.coerce.number().int().min(1, "Preço em centavos deve ser maior que zero"),
   cost_cents: z.coerce.number().int().min(0).default(0),
   compare_price: z.coerce.number().int().min(0).nullable().optional(),
