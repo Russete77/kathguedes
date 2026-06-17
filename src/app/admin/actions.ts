@@ -1093,6 +1093,52 @@ export async function togglePartnerStoreActive(id: string, active: boolean) {
   revalidatePath("/admin/loja");
 }
 
+export interface PartnerStoreClickStats {
+  partner_store_id: string;
+  clicks_total: number;
+  clicks_7d: number;
+  clicks_30d: number;
+  last_click_at: string | null;
+}
+
+/**
+ * Retorna cliques agregados no botão "Comprar pelo WhatsApp" por loja parceira.
+ * Tabela pode não existir ainda (migration 67 não aplicada) — retorna {} sem
+ * quebrar a UI.
+ */
+export async function getPartnerStoreClickStats(): Promise<
+  Record<string, PartnerStoreClickStats>
+> {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+  const { data, error } = await supabase
+    .from("partner_store_whatsapp_click_stats" as never)
+    .select("*");
+  if (error) {
+    // 42P01 = relation does not exist; 42703 = column does not exist
+    const code = (error as { code?: string }).code;
+    if (code === "42P01" || code === "42703") return {};
+    throw new Error(error.message);
+  }
+  const stats: Record<string, PartnerStoreClickStats> = {};
+  for (const row of (data ?? []) as Array<{
+    partner_store_id: string;
+    clicks_total: number | string;
+    clicks_7d: number | string;
+    clicks_30d: number | string;
+    last_click_at: string | null;
+  }>) {
+    stats[row.partner_store_id] = {
+      partner_store_id: row.partner_store_id,
+      clicks_total: Number(row.clicks_total) || 0,
+      clicks_7d: Number(row.clicks_7d) || 0,
+      clicks_30d: Number(row.clicks_30d) || 0,
+      last_click_at: row.last_click_at,
+    };
+  }
+  return stats;
+}
+
 export async function deleteProduct(id: string) {
   await requireAdmin();
   const supabase = createAdminSupabaseClient();

@@ -416,15 +416,26 @@ async function handleLojaPayment(
 ) {
   const { data: _orderRaw } = await supabase
     .from("orders")
-    .select("id, user_id, items, cashback_used_cents")
+    .select("id, user_id, status, items, cashback_used_cents")
     .eq("id", orderId)
     .single();
   type OrderItem = { product_id: string; quantity: number; cost_cents?: number; module?: string; price_cents: number };
-  type OrderRow = { id: string; user_id: string; items: OrderItem[] | null; cashback_used_cents: number | null };
+  type OrderRow = { id: string; user_id: string; status: string | null; items: OrderItem[] | null; cashback_used_cents: number | null };
   const order = _orderRaw as unknown as OrderRow | null;
 
   if (!order) {
     console.error("[webhook] loja order not found", { orderId });
+    return;
+  }
+
+  // C3 (auditoria 2026-06-16): pedido já CANCELADO (ex.: timeout de PIX que
+  // devolveu estoque e re-creditou o cashback) NÃO pode ser pago tardiamente —
+  // marcaria como pago sem estoque e debitaria o cashback de novo. Ignora.
+  if (order.status === "canceled") {
+    console.error("[webhook] loja pagamento de pedido CANCELADO — ignorando", {
+      orderId,
+      paymentId: payment.id,
+    });
     return;
   }
 

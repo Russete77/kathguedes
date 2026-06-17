@@ -5,8 +5,9 @@ import { WorkoutCard } from "@/components/fitness/workout-card";
 import { WorkoutFilters } from "@/components/fitness/workout-filters";
 import { StreakBadge } from "@/components/fitness/streak-badge";
 import { PlayCircle } from "lucide-react";
+import Link from "next/link";
 import { Suspense } from "react";
-import { planLevel, hasActiveAccess } from "@/lib/billing/access";
+import { planLevel, hasLibraryAccess, hasActiveAccess, demoTrialHoursLeft } from "@/lib/billing/access";
 import { LOWER_BODY_CATEGORIES, UPPER_BODY_CATEGORIES } from "@/constants/categories";
 import type { PlanTier } from "@/lib/supabase/types";
 
@@ -60,7 +61,7 @@ export default async function FitnessPage({ searchParams }: Props) {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("plan_tier, workout_streak, subscription_status, subscription_ends_at")
+    .select("plan_tier, workout_streak, subscription_status, subscription_ends_at, created_at")
     .eq("id", userId!)
     .single();
 
@@ -68,9 +69,17 @@ export default async function FitnessPage({ searchParams }: Props) {
   const userLevel = planLevel(userTier);
   // Gate freemium: tier so libera quando ha acesso pago ativo (status active OU
   // dentro do periodo pago). Quem nao pagou ve so os treinos is_free_preview.
-  const hasActiveSub = hasActiveAccess(
-    profile as { subscription_status?: string | null; subscription_ends_at?: string | null } | null,
-  );
+  // Biblioteca libera para pagante OU usuário novo no trial de demonstração de 24h.
+  const profileAccess = profile as {
+    subscription_status?: string | null;
+    subscription_ends_at?: string | null;
+    created_at?: string | null;
+  } | null;
+  const hasActiveSub = hasLibraryAccess(profileAccess);
+  // Banner de demo: só para quem está no trial e ainda não pagou.
+  const trialHoursLeft = hasActiveAccess(profileAccess)
+    ? 0
+    : demoTrialHoursLeft(profileAccess);
 
   // Mostramos TODOS os treinos publicados (independentemente do plano) — quem
   // nao tem acesso ve o card com cadeado e link pra /planos. Antes filtravamos
@@ -118,6 +127,27 @@ export default async function FitnessPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      {/* Banner de demonstração (trial de 24h, usuário ainda não pagou) */}
+      {trialHoursLeft > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-[18px] border border-pink/40 bg-pink-dim px-5 py-4">
+          <div className="flex-1">
+            <p className="text-white font-semibold text-sm">
+              Demonstração grátis ativa — {trialHoursLeft}h restantes
+            </p>
+            <p className="text-gray-2 text-[13px] mt-0.5">
+              Aproveite os treinos da Kath. Quando o período acabar, assine para
+              continuar com acesso completo.
+            </p>
+          </div>
+          <Link
+            href="/planos"
+            className="shrink-0 inline-flex items-center justify-center bg-pink text-white font-semibold text-sm rounded-full px-5 py-2.5 hover:bg-pink-light transition-colors"
+          >
+            Assinar agora
+          </Link>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

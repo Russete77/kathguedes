@@ -4,7 +4,9 @@ import { z } from "zod";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { checkRateLimitAsync } from "@/lib/rate-limit";
 import { getStoreDiscountPct } from "@/lib/billing/plans";
+import { hasActiveAccess } from "@/lib/billing/access";
 import { getWalletActiveCents, spendWalletCents } from "@/lib/billing/wallet";
+import { recordRevenueStream, refundRevenueStream } from "@/lib/billing/revenue";
 import { clampCashbackCents, computeAmountPaidCash } from "@/lib/billing/cashback-utils";
 import { handleApiError } from "@/lib/api-error";
 import { getShippingOptions } from "@/lib/shipping";
@@ -67,13 +69,25 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminSupabaseClient();
 
-    // plan_tier autoritativo
+    // plan_tier autoritativo — mas o desconto/cashback só vale com acesso ativo.
+    // Quem cancelou mantém o plan_tier premium no DB (não há cron de downgrade),
+    // então o tier EFETIVO para benefícios de loja cai para "start" sem assinatura
+    // ativa (auditoria 2026-06-16).
     const { data: profile } = await supabase
       .from("profiles")
-      .select("plan_tier")
+      .select("plan_tier, subscription_status, subscription_ends_at")
       .eq("id", userId)
       .single();
-    const planTier = (profile?.plan_tier as PlanTier | undefined) ?? "start";
+    const planTier = (
+      hasActiveAccess(
+        profile as {
+          subscription_status?: string | null;
+          subscription_ends_at?: string | null;
+        } | null,
+      )
+        ? (profile?.plan_tier as PlanTier | undefined) ?? "start"
+        : "start"
+    ) as PlanTier;
 
     // Produtos reais + cost_cents + module
     const productIds = body.items.map(i => i.product_id);
@@ -262,15 +276,54 @@ export async function POST(req: NextRequest) {
     // EXCECAO: quando o cashback cobre 100% (totalCents === 0) nao havera PIX nem
     // webhook, entao debitamos agora (com rollback de estoque/pedido em falha).
     if (cashbackUsedCents > 0 && totalCents === 0) {
+      // C4 (auditoria 2026-06-16): como não há cobrança Asaas nem webhook, o
+      // pedido precisa criar o revenue_stream AQUI (senão fica fora da receita/
+      // comissão) e o gasto de cashback precisa ser vinculado ao stream — assim
+      // fica idempotente (guard em spendWalletCents) e estornável em refund.
+      let createdStreamId: string | null = null;
       try {
-        await spendWalletCents({ userId, amountCents: cashbackUsedCents });
-        // Cashback cobre 100%: não haverá cobrança Asaas nem webhook, confirmar aqui.
+        const totalCost = validatedItems.reduce(
+          (sum, it) => sum + (it.cost_cents ?? 0) * it.quantity,
+          0,
+        );
+        const moduleQty = new Map<string, number>();
+        for (const it of validatedItems) {
+          moduleQty.set(it.module, (moduleQty.get(it.module) ?? 0) + it.quantity);
+        }
+        const dominantModule =
+          [...moduleQty.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+        // gross = valor das mercadorias (subtotal - desconto + frete), que aqui é
+        // exatamente o cashback usado, já que total a pagar = 0.
+        const stream = await recordRevenueStream({
+          type: "loja",
+          category: dominantModule,
+          user_id: userId,
+          reference_type: "order",
+          reference_id: order.id,
+          asaas_payment_id: null,
+          gross_cents: cashbackUsedCents,
+          cost_cents: totalCost,
+          cashback_used_cents: cashbackUsedCents,
+          occurred_at: new Date().toISOString(),
+        });
+        createdStreamId = stream.id;
+
+        await spendWalletCents({
+          userId,
+          amountCents: cashbackUsedCents,
+          revenueStreamId: stream.id,
+        });
+
         await supabase
           .from("orders")
           .update({ status: "paid", paid_at: new Date().toISOString() })
           .eq("id", order.id);
       } catch (walletErr) {
-        console.error("[loja/checkout] wallet spend failed; rolling back order", walletErr);
+        console.error("[loja/checkout] 100% cashback path failed; rolling back order", walletErr);
+        if (createdStreamId) {
+          await refundRevenueStream(createdStreamId).catch(() => {});
+        }
         await supabase.from("orders").update({ status: "canceled" }).eq("id", order.id);
         await supabase.rpc("increment_stock_batch", { p_items: stockPayload });
         return NextResponse.json({ error: "wallet_spend_failed" }, { status: 500 });

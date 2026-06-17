@@ -174,11 +174,13 @@ function calculateHarrisBenedict(
   const fatGrams = Math.round((calories * 0.25) / 9);
   const carbGrams = Math.round((calories - protein * 4 - fatGrams * 9) / 4);
 
+  // Sanitiza: qualquer NaN (anamnese incompleta) vira 0 — nunca propaga NaN.
+  const safe = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0);
   return {
-    calories: Math.round(calories),
-    protein,
-    carbs: Math.max(carbGrams, 0),
-    fat: fatGrams,
+    calories: safe(calories),
+    protein: safe(protein),
+    carbs: safe(carbGrams),
+    fat: safe(fatGrams),
   };
 }
 
@@ -610,15 +612,29 @@ export function PlanEditor({
       return;
     }
 
+    const weight = Number(anamnesis.weight);
+    const height = Number(anamnesis.height);
     const age = calculateAge(anamnesis.birthDate);
+
+    if (
+      !Number.isFinite(weight) || weight <= 0 ||
+      !Number.isFinite(height) || height <= 0 ||
+      !Number.isFinite(age) || age <= 0
+    ) {
+      toast.error(
+        "Anamnese incompleta: preencha peso, altura e data de nascimento para calcular as macros."
+      );
+      return;
+    }
+
     const activityMultiplier = getActivityMultiplier(
       anamnesis.trainingLevel,
       anamnesis.weeklyFrequency
     );
 
     const calculated = calculateHarrisBenedict(
-      anamnesis.weight,
-      anamnesis.height,
+      weight,
+      height,
       age,
       anamnesis.biologicalSex,
       anamnesis.primaryObjective,
@@ -712,7 +728,8 @@ export function PlanEditor({
         style: { borderLeft: "3px solid #00FF88" },
       });
     } catch (err) {
-      toast.error("Erro ao salvar");
+      // Mostra a causa real (ex.: validação Zod) em vez de engolir num toast genérico.
+      toast.error(err instanceof Error ? err.message : "Erro ao salvar");
       console.error(err);
     } finally {
       setSaving(false);

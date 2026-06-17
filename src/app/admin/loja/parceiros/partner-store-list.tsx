@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Store, Pencil, Trash2, MessageCircle } from "lucide-react";
+import { Store, Pencil, Trash2, MessageCircle, MousePointerClick } from "lucide-react";
 import { toast } from "sonner";
 import { deletePartnerStore, togglePartnerStoreActive } from "@/app/admin/actions";
+import type { PartnerStoreClickStats } from "@/app/admin/actions";
 import { PartnerStoreForm } from "./partner-store-form";
 
 interface PartnerStore {
@@ -24,7 +25,13 @@ function formatWhatsApp(number: string) {
   return `+${d}`;
 }
 
-export function PartnerStoreList({ stores }: { stores: PartnerStore[] }) {
+export function PartnerStoreList({
+  stores,
+  clickStats = {},
+}: {
+  stores: PartnerStore[];
+  clickStats?: Record<string, PartnerStoreClickStats>;
+}) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -84,11 +91,39 @@ export function PartnerStoreList({ stores }: { stores: PartnerStore[] }) {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <MessageCircle size={12} className="stroke-success shrink-0" />
-              <span className="font-mono text-xs text-gray-2">
-                {formatWhatsApp(store.whatsapp_number)}
-              </span>
+            <div className="flex items-center gap-3 mt-0.5">
+              <div className="flex items-center gap-1.5">
+                <MessageCircle size={12} className="stroke-success shrink-0" />
+                <span className="font-mono text-xs text-gray-2">
+                  {formatWhatsApp(store.whatsapp_number)}
+                </span>
+              </div>
+              {(() => {
+                const s = clickStats[store.id];
+                const total = s?.clicks_total ?? 0;
+                const last7 = s?.clicks_7d ?? 0;
+                return (
+                  <div
+                    className="flex items-center gap-1.5"
+                    title={
+                      s?.last_click_at
+                        ? `Último clique: ${new Date(s.last_click_at).toLocaleString("pt-BR")}`
+                        : "Nenhum clique ainda"
+                    }
+                  >
+                    <MousePointerClick size={12} className="stroke-pink shrink-0" />
+                    <span className="font-mono text-xs text-gray-2">
+                      {total.toLocaleString("pt-BR")} cliques
+                      {last7 > 0 && (
+                        <span className="text-gray-3">
+                          {" "}
+                          ({last7} em 7d)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

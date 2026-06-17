@@ -76,10 +76,15 @@ export function PartnerStoreForm({ store, children }: PartnerStoreFormProps) {
               label="Número WhatsApp"
               placeholder="5511999999999"
               defaultValue={store?.whatsapp_number}
+              inputMode="tel"
+              autoComplete="tel"
+              pattern="[0-9+\s()\-]{10,20}"
               required
             />
             <p className="text-xs text-gray-3 mt-1">
-              DDI + DDD + número, somente dígitos. Ex: 5511999999999
+              Formato: <strong>DDI + DDD + número</strong>. Brasil começa com{" "}
+              <strong>55</strong>. Ex: <code>5511999999999</code> (13 dígitos).
+              Sem o DDI o botão não abre no celular.
             </p>
           </div>
           <Input

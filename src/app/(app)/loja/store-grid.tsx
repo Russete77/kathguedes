@@ -63,6 +63,37 @@ function buildWhatsAppUrl(whatsappNumber: string, productTitle: string, priceCen
   return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
 }
 
+/**
+ * Registra clique no botão "Comprar pelo WhatsApp" para métricas do admin.
+ * Usa sendBeacon (quando disponível) para garantir entrega mesmo após o
+ * navegador iniciar a navegação para wa.me. Fallback em fetch keepalive.
+ * NUNCA bloqueia o fluxo — erros são silenciosos.
+ */
+function trackWhatsAppClick(payload: {
+  partner_store_id: string;
+  product_id?: string;
+  price_cents?: number;
+}): void {
+  if (typeof window === "undefined") return;
+  const url = "/api/loja/whatsapp-click";
+  try {
+    const body = JSON.stringify(payload);
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const blob = new Blob([body], { type: "application/json" });
+      navigator.sendBeacon(url, blob);
+      return;
+    }
+    void fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // silencioso
+  }
+}
+
 export function StoreGrid({
   products,
   storeDiscountPct,
@@ -348,6 +379,13 @@ export function StoreGrid({
                     href={buildWhatsAppUrl(p.partner_stores.whatsapp_number, p.title, finalPrice)}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() =>
+                      trackWhatsAppClick({
+                        partner_store_id: p.partner_stores!.id,
+                        product_id: p.id,
+                        price_cents: finalPrice,
+                      })
+                    }
                     className="w-full inline-flex items-center justify-center gap-2 rounded-[8px] px-4 py-2 text-sm font-semibold bg-[#25D366] hover:bg-[#1ebe5b] text-white transition-colors"
                   >
                     <MessageCircle size={14} />
@@ -653,6 +691,13 @@ export function StoreGrid({
                       href={buildWhatsAppUrl(sp.partner_stores.whatsapp_number, sp.title, spPrice)}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={() =>
+                        trackWhatsAppClick({
+                          partner_store_id: sp.partner_stores!.id,
+                          product_id: sp.id,
+                          price_cents: spPrice,
+                        })
+                      }
                       className="w-full inline-flex items-center justify-center gap-2 rounded-[8px] px-4 py-3 text-sm font-semibold bg-[#25D366] hover:bg-[#1ebe5b] text-white transition-colors"
                     >
                       <MessageCircle size={16} />

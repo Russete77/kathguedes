@@ -1,8 +1,8 @@
 {
   "crons": [
     { "path": "/api/cron/wallet-expire", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/order-timeout", "schedule": "0 3 * * *" },
-    { "path": "/api/cron/wellness-reminder", "schedule": "0 8 * * *" },
+    { "path": "/api/cron/order-timeout", "schedule": "0 * * * *" },
+    { "path": "/api/cron/wellness-reminder", "schedule": "0 * * * *" },
     { "path": "/api/cron/consultoria-draft", "schedule": "0 4 * * *" },
     { "path": "/api/cron/consultoria-renew", "schedule": "0 7 * * *" }
   ]

@@ -75,3 +75,49 @@ export function hasActiveAccess(
     : null;
   return !!ends && ends.getTime() > Date.now();
 }
+
+/** Janela do trial de demonstração para usuário novo (horas após o cadastro). */
+export const DEMO_TRIAL_HOURS = 24;
+
+/**
+ * true se o usuário novo ainda está dentro do trial de demonstração de 24h
+ * (a partir de `profile.created_at`). Libera a biblioteca/treinos para o novo
+ * usuário experimentar o app antes de pagar. NÃO libera consultoria nem loja.
+ */
+export function isInDemoTrial(
+  profile: { created_at?: string | null } | null | undefined,
+): boolean {
+  if (!profile?.created_at) return false;
+  const created = new Date(profile.created_at).getTime();
+  if (!Number.isFinite(created)) return false;
+  return Date.now() < created + DEMO_TRIAL_HOURS * 60 * 60 * 1000;
+}
+
+/** Horas restantes do trial (0 se expirado / sem trial) — para banners de UI. */
+export function demoTrialHoursLeft(
+  profile: { created_at?: string | null } | null | undefined,
+): number {
+  if (!profile?.created_at) return 0;
+  const created = new Date(profile.created_at).getTime();
+  if (!Number.isFinite(created)) return 0;
+  const msLeft = created + DEMO_TRIAL_HOURS * 60 * 60 * 1000 - Date.now();
+  return msLeft > 0 ? Math.ceil(msLeft / (60 * 60 * 1000)) : 0;
+}
+
+/**
+ * Acesso à BIBLIOTECA/TREINOS: tem acesso pago (hasActiveAccess) OU está dentro
+ * do trial de demonstração de 24h. Use ESTE gate em fitness/biblioteca.
+ * Não use para consultoria nem loja — essas continuam exigindo hasActiveAccess.
+ */
+export function hasLibraryAccess(
+  profile:
+    | {
+        subscription_status?: string | null;
+        subscription_ends_at?: string | null;
+        created_at?: string | null;
+      }
+    | null
+    | undefined,
+): boolean {
+  return hasActiveAccess(profile) || isInDemoTrial(profile);
+}

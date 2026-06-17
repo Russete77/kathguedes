@@ -4,7 +4,7 @@ import { notifyUser } from "@/lib/notifications";
 import { handleApiError } from "@/lib/api-error";
 
 /**
- * GET /api/cron/wellness-reminder  (roda 1× por hora — vercel.json: "0 * * * *")
+ * GET /api/cron/wellness-reminder  (roda 1× por HORA — vercel.json: "0 * * * *")
  *
  * SENDER dos pushes recorrentes definidos pela EQUIPE em `notification_schedules`
  * (admin define conteúdo + horários; o user só liga/desliga em /perfil/notificacoes).
@@ -18,9 +18,8 @@ import { handleApiError } from "@/lib/api-error";
  *       - "motivacional": só 2x/semana (segunda e sexta) e usa o VÍDEO DO DIA
  *         (link in-app /motivacional/<id>), rotacionado deterministicamente.
  *
- * Janela: compara HORA (minuto 0) com tolerância de 1h. Anti-spam: como o cron
- * roda 1×/h e a janela é exatamente 60min, cada horário casa em um único disparo.
- *
+ * Janela: o horário do schedule casa com [hora atual, +60min). Como o cron roda
+ * 1×/h (Vercel Pro), cada horário dispara num único run (anti-spam natural).
  * Segurança: Authorization: Bearer ${CRON_SECRET}.
  */
 

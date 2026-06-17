@@ -3,7 +3,7 @@ import {
   createAdminSupabaseClient,
 } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
-import { planLevel, hasPlanAccess, hasActiveAccess, tiersUpTo } from "@/lib/billing/access";
+import { planLevel, hasPlanAccess, hasLibraryAccess, tiersUpTo } from "@/lib/billing/access";
 import type { PlanTier } from "@/lib/supabase/types";
 import { ImmersivePlayer } from "./immersive-player";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: Props) {
       .single(),
     admin
       .from("profiles")
-      .select("plan_tier, subscription_status, subscription_ends_at")
+      .select("plan_tier, subscription_status, subscription_ends_at, created_at")
       .eq("id", userId!)
       .single(),
   ]);
@@ -61,8 +61,12 @@ export async function generateMetadata({ params }: Props) {
   };
   const userLevel = planLevel(((profile?.plan_tier as string) || "start") as PlanTier);
   const required = planLevel(w.required_plan as PlanTier);
-  const hasActiveSub = hasActiveAccess(
-    profile as { subscription_status?: string | null; subscription_ends_at?: string | null } | null,
+  const hasActiveSub = hasLibraryAccess(
+    profile as {
+      subscription_status?: string | null;
+      subscription_ends_at?: string | null;
+      created_at?: string | null;
+    } | null,
   );
   // SEO: titulo so vaza se o user pode ver o treino. is_free_preview destranca.
   const canSee = w.is_free_preview === true || (hasActiveSub && userLevel >= required);
@@ -114,13 +118,18 @@ export default async function WorkoutPage({ params }: Props) {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("plan_tier, subscription_status, subscription_ends_at")
+    .select("plan_tier, subscription_status, subscription_ends_at, created_at")
     .eq("id", userId!)
     .single();
   const userTier = ((profile?.plan_tier as string) || "start") as PlanTier;
   const userLevel = planLevel(userTier);
-  const hasActiveSub = hasActiveAccess(
-    profile as { subscription_status?: string | null; subscription_ends_at?: string | null } | null,
+  // Biblioteca libera para pagante OU usuário novo no trial de demonstração de 24h.
+  const hasActiveSub = hasLibraryAccess(
+    profile as {
+      subscription_status?: string | null;
+      subscription_ends_at?: string | null;
+      created_at?: string | null;
+    } | null,
   );
 
   const { data: workout } = await admin

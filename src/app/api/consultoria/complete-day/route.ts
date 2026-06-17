@@ -29,31 +29,40 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminSupabaseClient();
 
+  // Gate: só marca progresso quem tem consultoria ativa (in_progress/delivered).
+  // Sem isso, qualquer usuário logado poderia inflar o streak sem ter plano
+  // (auditoria 2026-06-16).
+  const { data: consult } = await supabase
+    .from("consultations")
+    .select("id, completed_days")
+    .eq("user_id", userId)
+    .in("status", ["in_progress", "delivered"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!consult) {
+    return NextResponse.json(
+      { error: "Sem consultoria ativa para marcar progresso" },
+      { status: 403 },
+    );
+  }
+
   // Streak atômico (RPC com fallback). Idempotente no mesmo dia.
   const newStreak = await updateWorkoutStreak(supabase, userId);
 
   let completedDays: string[] | undefined;
   if (dayKey) {
-    // Marca o dia na consultoria ativa do aluno (mais recente não-expirada).
-    const { data: consult } = await supabase
+    // Marca o dia na consultoria ativa do aluno.
+    const current = Array.isArray(consult.completed_days)
+      ? (consult.completed_days as string[])
+      : [];
+    const next = current.includes(dayKey) ? current : [...current, dayKey];
+    completedDays = next;
+    await supabase
       .from("consultations")
-      .select("id, completed_days")
-      .eq("user_id", userId)
-      .in("status", ["in_progress", "delivered"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (consult) {
-      const current = Array.isArray(consult.completed_days)
-        ? (consult.completed_days as string[])
-        : [];
-      const next = current.includes(dayKey) ? current : [...current, dayKey];
-      completedDays = next;
-      await supabase
-        .from("consultations")
-        .update({ completed_days: next })
-        .eq("id", consult.id);
-    }
+      .update({ completed_days: next })
+      .eq("id", consult.id);
   }
 
   return NextResponse.json({ completed: true, streak: newStreak, completedDays });

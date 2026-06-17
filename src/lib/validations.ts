@@ -66,13 +66,22 @@ export const planWeekSchema = z.object({
 export const workoutPlanSchema = z.object({
   weeks: z.array(planWeekSchema).min(1).max(12),
 });
+// Macros tolerantes: aceita string/decimal, arredonda e trata NaN/ausente com
+// segurança. Evita que um valor inválido (ex.: NaN quando a anamnese está
+// incompleta e o admin clica em "calcular") quebre o save inteiro da consultoria.
+const macroInt = z.preprocess((v) => {
+  if (v === undefined || v === null || v === "") return undefined;
+  const n = typeof v === "string" ? Number(v.replace(",", ".")) : Number(v);
+  return Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0;
+}, z.number().int().min(0).optional());
+
 export const dietFoodSchema = z.object({
   name: z.string().min(1).max(200),
   quantity: z.string().max(60).optional().default(""),
-  calories: z.coerce.number().int().min(0).optional(),
-  protein: z.coerce.number().int().min(0).optional(),
-  carbs: z.coerce.number().int().min(0).optional(),
-  fat: z.coerce.number().int().min(0).optional(),
+  calories: macroInt,
+  protein: macroInt,
+  carbs: macroInt,
+  fat: macroInt,
 });
 export const dietMealSchema = z.object({
   name: z.string().min(1).max(80),
@@ -133,13 +142,31 @@ export const createProductSchema = z.object({
 });
 
 // ── Partner Stores ──
+// Normaliza para somente dígitos e garante DDI.
+// Brasil (10 ou 11 dígitos sem DDI) recebe prefixo 55 automático.
+// Validação final exige 12-15 dígitos no formato E.164 (sem o +).
+// Importante p/ o link wa.me: o app mobile do WhatsApp REJEITA números
+// sem código de país, exibindo "Não foi possível abrir este link".
+export const whatsappNumberSchema = z
+  .string()
+  .min(1, "Número obrigatório")
+  .transform((v) => {
+    const digits = v.replace(/\D/g, "");
+    if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+    return digits;
+  })
+  .pipe(
+    z
+      .string()
+      .regex(
+        /^\d{12,15}$/,
+        "Número inválido. Use DDI + DDD + número, ex: 5511999999999",
+      ),
+  );
+
 export const createPartnerStoreSchema = z.object({
   name: z.string().min(1, "Nome obrigatório").max(200),
-  // Aceita formatos com ou sem + e espaços — guarda só dígitos
-  whatsapp_number: z.string()
-    .min(10, "Número inválido")
-    .max(20)
-    .transform((v) => v.replace(/\D/g, "")),
+  whatsapp_number: whatsappNumberSchema,
   logo_url: z.preprocess(
     (v) => (v === "" || v == null ? null : v),
     z.string().url("URL inválida").nullable().optional(),
@@ -150,10 +177,10 @@ export const createPartnerStoreSchema = z.object({
 export const updateConsultationSchema = z.object({
   workout_plan: z.unknown().optional(),
   diet_plan: z.unknown().optional(),
-  daily_calories: z.coerce.number().int().min(0).optional(),
-  daily_protein: z.coerce.number().int().min(0).optional(),
-  daily_carbs: z.coerce.number().int().min(0).optional(),
-  daily_fat: z.coerce.number().int().min(0).optional(),
+  daily_calories: macroInt,
+  daily_protein: macroInt,
+  daily_carbs: macroInt,
+  daily_fat: macroInt,
   status: z.enum(["pending", "in_progress", "delivered", "expired"]).optional(),
   notes_admin: z.string().max(5000).optional(),
 });
